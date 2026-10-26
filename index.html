@@ -40,10 +40,11 @@ button,.btn{padding:10px 14px;border:0;border-radius:8px;background:var(--a);col
 <div class="row"><button onclick="add()" id="ab">Guardar</button><button class="s" onclick="clr()">Limpiar</button></div></div>
 
 <div class="card"><h2>Comprobantes (<span id="n">0</span>)</h2><div class="tw"><table><thead><tr><th></th><th>Proveedor</th><th>NCF</th><th>Fecha</th><th>Total</th><th>ITBIS</th><th></th></tr></thead><tbody id="tb"></tbody></table></div>
-<div class="row"><button onclick="exp()">Generar TXT para la DGII</button><button class="s" onclick="bk()">Respaldo</button>
+<div class="row"><button onclick="exp()">Generar TXT para la DGII</button><button onclick="ver()">Ver reporte / copiar</button><button class="s" onclick="bk()">Respaldo</button>
 <label class="btn s" style="color:var(--t)">Restaurar<input type="file" accept=".json" hidden onchange="rs(this)"></label></div>
 <p class="m">Antes de enviar, valida el TXT con el prevalidador de la DGII. Todo se guarda solo en este dispositivo.</p></div>
 
+<div class="card" id="rep" hidden><h2>Reporte 606</h2><p class="m">En la herramienta de la DGII: toca la celda <b>B12</b> y pega con <b>Pegar especial → Valores</b>. Las columnas van en el mismo orden (1 a 23) y las filas se copian sin títulos.</p><div class="row" style="margin:0 0 10px"><button onclick="cp(0)">Copiar filas</button><button class="s" onclick="cp(1)">Copiar con títulos</button></div><div class="tw"><table id="rt"></table></div></div>
 <script>
 const $=i=>document.getElementById(i);let S={rnc:'',per:'',rows:[]},ed=-1,cur=null,stream=null;
 try{S=JSON.parse(localStorage.getItem('f606'))||S}catch(e){}
@@ -134,11 +135,19 @@ else if(f.type.startsWith('image/')||nm.endsWith('.pdf')){$('err').textContent='
 else{const L=(await f.text()).split(/\r?\n/).filter(l=>l.trim());for(const l of L){const c=l.split(/[,;|\t]/).map(s=>s.trim());if(!/^\d{9,11}$/.test(c[0]))continue;
 S.rows.push({prov:c[0],ncf:(c[1]||'').toUpperCase(),fc:dt(c[2]),fp:'',tg:'02',sv:c[3]||'',bi:c[4]||'',it:c[5]||'',ir:'',pr:'',fpg:c[6]||'01'});n++}}}
 sv();render();inp.value='';$('err').textContent=rep.join(' | ');alert(n+' comprobante(s) importado(s). Los marcados con ⚠ necesitan revisión.\n\n'+rep.join('\n'))}
-function exp(){sv();if(!/^\d{6}$/.test(S.per)&&S.rows[0]&&S.rows[0].fc){const p=D(S.rows[0].fc).slice(0,6);if(confirm('Falta el período. ¿Usar '+p+'?')){S.per=p;$('per').value=p;sv()}}
+const HD=['RNC o Cédula','Tipo Id','Tipo Bienes y Servicios Comprados','NCF','NCF o Documento Modificado','Fecha Comprobante','Fecha Pago','Monto Facturado en Servicios','Monto Facturado en Bienes','Total Monto Facturado','ITBIS Facturado','ITBIS Retenido','ITBIS sujeto a Proporcionalidad','ITBIS llevado al Costo','ITBIS por Adelantar','ITBIS percibido en compras','Tipo de Retención en ISR','Monto Retención Renta','ISR Percibido en compras','Impuesto Selectivo al Consumo','Otros Impuestos/Tasas','Monto Propina Legal','Forma de Pago'];
+function fld(o){const t=N(o.sv)+N(o.bi);return[o.prov,o.prov.length==9?1:2,o.tg,o.ncf,'',D(o.fc),D(o.fp),M(o.sv),M(o.bi),M(t),M(o.it),o.ir?M(o.ir):'','','',M(o.it),'','','','','','',o.pr?M(o.pr):'',o.fpg]}
+async function cp(h){sv();if(!S.rows.length){alert('No hay comprobantes guardados todavía.');return}
+const t=[...(h?[HD.join('\t')]:[]),...S.rows.map(o=>{const f=fld(o);if(/^0/.test(f[0]))f[0]="'"+f[0];return f.join('\t')})].join('\n');
+try{await navigator.clipboard.writeText(t)}catch(e){const a=document.createElement('textarea');a.value=t;document.body.appendChild(a);a.select();document.execCommand('copy');a.remove()}
+alert('Copiado ('+S.rows.length+' filas). '+(h?'Pégalo en la celda A1 de una hoja nueva.':'En la herramienta de la DGII toca la celda B12 y pega con Pegar especial → Valores.'))}
+function ver(){sv();if(!S.rows.length){alert('No hay comprobantes guardados todavía.');return}
+$('rt').innerHTML='<thead><tr>'+HD.map((h,i)=>`<th title="${h}">${i+1}</th>`).join('')+'</tr></thead><tbody>'+S.rows.map(o=>'<tr>'+fld(o).map(v=>`<td>${v}</td>`).join('')+'</tr>').join('')+'</tbody>';$('rep').hidden=false;$('rep').scrollIntoView()}
+function exp(){sv();if(!S.rows.length){alert('No hay comprobantes guardados. Importa o agrega comprobantes primero: el reporte saldría vacío.');return}if(!/^\d{6}$/.test(S.per)&&S.rows[0]&&S.rows[0].fc){const p=D(S.rows[0].fc).slice(0,6);if(confirm('Falta el período. ¿Usar '+p+'?')){S.per=p;$('per').value=p;sv()}}
 if(!/^(\d{9}|\d{11})$/.test(S.rnc)){alert('Tu RNC o cédula debe tener 9 u 11 dígitos, solo números. Ahora tiene '+S.rnc.length+'.');return}
 if(!/^\d{6}$/.test(S.per)){alert('Escribe el período como AAAAMM, por ejemplo 202610 (año 2026, mes 10). Lo que ves en gris es solo un ejemplo.');return}
 const bad=S.rows.filter(o=>chk(o).length).length;if(bad&&!confirm(bad+' comprobante(s) con avisos. ¿Generar de todas formas?'))return;
-const L=S.rows.map(o=>{const t=N(o.sv)+N(o.bi);return[o.prov,o.prov.length==9?1:2,o.tg,o.ncf,'',D(o.fc),D(o.fp),M(o.sv),M(o.bi),M(t),M(o.it),o.ir?M(o.ir):'','','',M(o.it),'','','','','','',o.pr?M(o.pr):'',o.fpg].join('|')});
+const L=S.rows.map(o=>fld(o).join('|'));
 dlf(['606',S.rnc,S.per,S.rows.length].join('|')+'\n'+L.join('\n'),`DGII_F_606_${S.rnc}_${S.per}.TXT`,'text/plain')}
 function dlf(txt,name,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([txt],{type}));a.download=name;a.click()}
 function bk(){dlf(JSON.stringify({...S,key:''}),'respaldo606.json','application/json')}
