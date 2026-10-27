@@ -1,0 +1,162 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Formato 606</title><link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#0b6b4f"><link rel="icon" href="icon-192.png"><link rel="apple-touch-icon" href="icon-192.png">
+<style>
+:root{--bg:#f6f7f9;--c:#fff;--t:#1b1f24;--m:#6a737d;--a:#0b6b4f;--b:#d9dde2;--r:#b42318}
+@media(prefers-color-scheme:dark){:root{--bg:#14171a;--c:#1e2327;--t:#e8eaed;--m:#9aa3ad;--a:#3ecf9a;--b:#333b42;--r:#ff8a80}}
+*{box-sizing:border-box}body{margin:0 auto;max-width:920px;padding:12px;font:15px system-ui,sans-serif;background:var(--bg);color:var(--t)}
+h1{font-size:20px;margin:6px 0 12px}h2{font-size:16px;margin:0 0 10px}
+.card{background:var(--c);border:1px solid var(--b);border-radius:12px;padding:14px;margin-bottom:12px}
+.g{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+label{display:block;font-size:12px;color:var(--m)}input,select{width:100%;padding:9px;border:1px solid var(--b);border-radius:8px;background:var(--bg);color:var(--t);font:inherit}
+button,.btn{padding:10px 14px;border:0;border-radius:8px;background:var(--a);color:#fff;font:inherit;font-weight:600;cursor:pointer;display:inline-block}
+.s{background:transparent;color:var(--t);border:1px solid var(--b)}.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.tw{overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:13px}td,th{padding:7px;border-bottom:1px solid var(--b);text-align:left;white-space:nowrap}
+.bad{color:var(--r)}.m{color:var(--m);font-size:13px}video{width:100%;max-height:60vh;border-radius:8px;background:#000}img.th{height:34px;border-radius:4px}
+</style></head><body>
+<h1>Formato 606 · Compras de bienes y servicios</h1>
+<div class="card"><div class="g">
+<div><label>Tu RNC o cédula</label><input id="rnc" inputmode="numeric" maxlength="11"></div>
+<div><label>Período (AAAAMM)</label><input id="per" inputmode="numeric" maxlength="6" placeholder="Ejemplo: 202610"></div></div></div>
+
+<div class="card"><h2>Lectura con IA</h2><label>Clave API de Anthropic (opcional; se guarda solo en este teléfono)</label><input id="key" type="password" autocomplete="off"><p class="m">Con internet y clave: lee con la IA de Claude. Sin clave o sin internet: OCR en el teléfono (la primera vez necesita internet para descargarlo).</p></div>
+<div class="card"><h2>Agregar comprobante</h2>
+<div class="row" style="margin:0 0 10px">
+<button onclick="scan()">📷 Escanear QR</button>
+<label class="btn s" style="color:var(--t)">Foto de factura<input type="file" accept="image/*" capture="environment" hidden onchange="photo(this)"></label>
+<label class="btn s" style="color:var(--t)">Importar archivos<input type="file" multiple accept=".xml,.csv,.txt,.pdf,image/*" hidden onchange="imp(this)"></label></div>
+<video id="v" hidden playsinline></video>
+<div id="vc" class="row" hidden style="margin:8px 0"><button onclick="snap()">📸 Capturar factura</button><button class="s" onclick="stop()">Cerrar cámara</button></div>
+<div class="g">
+<div><label>RNC/cédula proveedor</label><input id="prov" inputmode="numeric" maxlength="11"></div>
+<div><label>NCF / e-NCF</label><input id="ncf" maxlength="13"></div>
+<div><label>Fecha del comprobante</label><input id="fc" type="date"></div>
+<div><label>Fecha de pago</label><input id="fp" type="date"></div>
+<div><label>Tipo de gasto</label><select id="tg"><option value="01">01 Personal</option><option value="02" selected>02 Trabajos, suministros y servicios</option><option value="03">03 Arrendamientos</option><option value="04">04 Activos fijos</option><option value="05">05 Representación</option><option value="06">06 Otras deducciones admitidas</option><option value="07">07 Financieros</option><option value="08">08 Extraordinarios</option><option value="09">09 Costo de venta</option><option value="10">10 Adquisiciones de activos</option><option value="11">11 Seguros</option></select></div>
+<div><label>Monto servicios</label><input id="sv" type="number" step="0.01"></div>
+<div><label>Monto bienes</label><input id="bi" type="number" step="0.01"></div>
+<div><label>ITBIS facturado</label><input id="it" type="number" step="0.01"></div>
+<div><label>ITBIS retenido</label><input id="ir" type="number" step="0.01"></div>
+<div><label>Propina legal</label><input id="pr" type="number" step="0.01"></div>
+<div><label>Forma de pago</label><select id="fpg"><option value="01">01 Efectivo</option><option value="02">02 Cheque/transferencia</option><option value="03">03 Tarjeta</option><option value="04">04 Crédito</option><option value="05">05 Permuta</option><option value="06">06 Nota de crédito</option><option value="07">07 Mixto</option></select></div></div>
+<div id="err" class="bad m"></div><pre id="dbg" class="m" style="white-space:pre-wrap;max-height:160px;overflow:auto"></pre>
+<div class="row"><button onclick="add()" id="ab">Guardar</button><button class="s" onclick="clr()">Limpiar</button></div></div>
+
+<div class="card"><h2>Comprobantes (<span id="n">0</span>)</h2><div class="tw"><table><thead><tr><th></th><th>Proveedor</th><th>NCF</th><th>Fecha</th><th>Total</th><th>ITBIS</th><th></th></tr></thead><tbody id="tb"></tbody></table></div>
+<div class="row"><button onclick="exp()">Generar TXT para la DGII</button><button onclick="ver()">Ver reporte / copiar</button><button class="s" onclick="bk()">Respaldo</button>
+<label class="btn s" style="color:var(--t)">Restaurar<input type="file" accept=".json" hidden onchange="rs(this)"></label></div>
+<p class="m">Antes de enviar, valida el TXT con el prevalidador de la DGII. Todo se guarda solo en este dispositivo.</p></div>
+
+<div class="card" id="rep" hidden><h2>Reporte 606</h2><p class="m">En la herramienta de la DGII: toca la celda <b>B12</b> y pega con <b>Pegar especial → Valores</b>. Los datos ocupan de la columna B a la Z: la fecha del comprobante va dividida (G = año y mes, H = día) y la fecha de pago (I y J) queda vacía. Se copian sin títulos.</p><div class="row" style="margin:0 0 10px"><button onclick="cp(0)">Copiar filas</button><button class="s" onclick="cp(1)">Copiar con títulos</button></div><div class="tw"><table id="rt"></table></div></div>
+<script>
+const $=i=>document.getElementById(i);let S={rnc:'',per:'',rows:[]},ed=-1,cur=null,stream=null;
+try{S=JSON.parse(localStorage.getItem('f606'))||S}catch(e){}
+const F=['prov','ncf','fc','fp','tg','sv','bi','it','ir','pr','fpg'];
+const sv=()=>{S.rnc=$('rnc').value.replace(/\D/g,'');S.per=$('per').value.replace(/\D/g,'');S.key=$('key').value.trim();try{localStorage.setItem('f606',JSON.stringify(S))}catch(e){alert('No se pudo guardar en este navegador')}};
+$('rnc').oninput=$('per').oninput=$('key').oninput=sv;
+const N=x=>parseFloat(x)||0,M=x=>N(x).toFixed(2),D=x=>(x||'').replace(/-/g,'');
+const okNcf=x=>/^(B\d{10}|E\d{12})$/i.test(x);
+function chk(o){const e=[];if(!/^(\d{9}|\d{11})$/.test(o.prov))e.push('RNC/cédula del proveedor debe tener 9 u 11 dígitos');else if(o.prov.length===9&&!rncOk(o.prov))e.push('RNC con dígito verificador inválido (¿error de lectura?)');
+if(!okNcf(o.ncf))e.push('NCF inválido (B + 10 dígitos, o E + 12 dígitos)');if(!o.fc)e.push('falta fecha');
+if(N(o.sv)+N(o.bi)<=0)e.push('falta monto');if(S.per&&o.fc&&D(o.fc).slice(0,6)!==S.per)e.push('la fecha no es del período');return e}
+function rd(){const o={};F.forEach(k=>o[k]=$(k).value.trim());o.ncf=o.ncf.toUpperCase();if(cur)o.img=cur;return o}
+function fill(o){F.forEach(k=>{if(o[k]!=null)$(k).value=o[k]})}
+function clr(){F.forEach(k=>$(k).value='');$('tg').value='02';$('fpg').value='01';cur=null;ed=-1;$('ab').textContent='Guardar';$('err').textContent=''}
+function add(){const o=rd(),e=chk(o);if(e.length&&!confirm('Hay avisos:\n- '+e.join('\n- ')+'\n¿Guardar de todas formas?'))return;
+if(ed>=0)S.rows[ed]=o;else S.rows.push(o);sv();clr();render()}
+function render(){$('rnc').value=S.rnc||'';$('key').value=S.key||'';$('per').value=S.per||'';$('n').textContent=S.rows.length;
+$('tb').innerHTML=S.rows.map((o,i)=>{const e=chk(o);return`<tr><td>${o.img?`<img class="th" src="${o.img}">`:''}</td><td>${o.prov}</td><td class="${e.length?'bad':''}" title="${e.join('; ')}">${o.ncf}${e.length?' ⚠':''}</td><td>${o.fc}</td><td>${M(N(o.sv)+N(o.bi))}</td><td>${M(o.it)}</td><td><button class="s" onclick="ld(${i})">Editar</button> <button class="s" onclick="dl(${i})">✕</button></td></tr>`}).join('')}
+function ld(i){clr();ed=i;cur=S.rows[i].img||null;fill(S.rows[i]);$('ab').textContent='Actualizar';scrollTo(0,0)}
+function dl(i){if(confirm('¿Eliminar?')){S.rows.splice(i,1);sv();render()}}
+function dt(s){s=(s||'').trim();let m=s.match(/^(\d{2})[-\/](\d{2})[-\/](\d{4})/);if(m)return`${m[3]}-${m[2]}-${m[1]}`;m=s.match(/^(\d{4})-(\d{2})-(\d{2})/);return m?m[0]:''}
+function thumb(f){return new Promise(r=>{const i=new Image(),u=URL.createObjectURL(f);i.onload=()=>{const k=Math.min(1,900/i.width),c=document.createElement('canvas');c.width=i.width*k;c.height=i.height*k;c.getContext('2d').drawImage(i,0,0,c.width,c.height);URL.revokeObjectURL(u);r(c.toDataURL('image/jpeg',.6))};i.onerror=()=>r(null);i.src=u})}
+const PROMPT='Esta es una factura o comprobante fiscal de República Dominicana. Responde SOLO un JSON, sin texto adicional, con las claves: rnc_emisor (solo dígitos), ncf (B01... o E31...), fecha (YYYY-MM-DD), servicios (monto de servicios sin ITBIS), bienes (monto de bienes sin ITBIS), itbis, propina (propina legal si existe), total, forma_pago ("01" efectivo, "02" cheque/transferencia, "03" tarjeta, "04" crédito), tipo_gasto (código 01 a 11 más probable). Usa null si algo no aparece. No inventes datos.';
+const rb=f=>new Promise(r=>{const x=new FileReader();x.onload=()=>r(x.result.split(',')[1]);x.readAsDataURL(f)});
+function b64(f,mx,q){return new Promise(r=>{const i=new Image(),u=URL.createObjectURL(f);i.onload=()=>{const k=Math.min(1,mx/Math.max(i.width,i.height)),c=document.createElement('canvas');c.width=i.width*k;c.height=i.height*k;c.getContext('2d').drawImage(i,0,0,c.width,c.height);URL.revokeObjectURL(u);r(c.toDataURL('image/jpeg',q).split(',')[1])};i.onerror=()=>r(null);i.src=u})}
+async function ai(f){if(!S.key||!navigator.onLine)return null;const pdf=f.type==='application/pdf',d=pdf?await rb(f):await b64(f,1800,.85);if(!d)return null;
+const blk=pdf?{type:'document',source:{type:'base64',media_type:'application/pdf',data:d}}:{type:'image',source:{type:'base64',media_type:'image/jpeg',data:d}};
+const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'content-type':'application/json','x-api-key':S.key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-5-5',max_tokens:600,messages:[{role:'user',content:[blk,{type:'text',text:PROMPT}]}]})});
+if(!r.ok)throw new Error('IA '+r.status);const t=(await r.json()).content.map(x=>x.text||'').join(''),j=JSON.parse(t.replace(/```json|```/g,'').trim()),o={};
+const set=(k,v)=>{if(v!=null&&v!=='')o[k]=String(v)};set('prov',String(j.rnc_emisor||'').replace(/\D/g,''));set('ncf',String(j.ncf||'').toUpperCase());set('fc',dt(j.fecha||''));set('sv',j.servicios);set('bi',j.bienes);set('it',j.itbis);set('pr',j.propina);
+if(/^0[1-7]$/.test(j.forma_pago))o.fpg=j.forma_pago;if(/^(0[1-9]|1[01])$/.test(j.tipo_gasto))o.tg=j.tipo_gasto;
+if(!o.sv&&!o.bi&&j.total)o.bi=M(N(j.total)-N(j.itbis)-N(j.propina));return o}
+function cropBox(g,w,h){const so=Float32Array.from(g).sort(),th=so[Math.floor(so.length*.99)]*.86,L=new Int32Array(w*h),st=[];let best=null,id=0;
+for(let s=0;s<w*h;s++){if(L[s]||g[s]<=th)continue;id++;let a=0,x0=w,x1=0,y0=h,y1=0;L[s]=id;st.push(s);
+while(st.length){const p=st.pop(),x=p%w,y=(p-x)/w;a++;if(x<x0)x0=x;if(x>x1)x1=x;if(y<y0)y0=y;if(y>y1)y1=y;
+for(const q of[x>0?p-1:-1,x<w-1?p+1:-1,y>0?p-w:-1,y<h-1?p+w:-1])if(q>=0&&!L[q]&&g[q]>th){L[q]=id;st.push(q)}}
+if(!best||a>best.a)best={a,x0,x1,y0,y1}}
+return best&&best.a>=.04*w*h?best:null}
+function binarize(g,w,h){const W=w+1,I=new Int32Array(W*(h+1));for(let y=0;y<h;y++){let r=0;for(let x=0;x<w;x++){r+=g[y*w+x];I[(y+1)*W+x+1]=I[y*W+x+1]+r}}
+const R=(Math.max(15,(Math.min(w,h)/12|0)|1)-1)/2,o=new Uint8ClampedArray(w*h);
+for(let y=0;y<h;y++){const y0=Math.max(0,y-R),y1=Math.min(h,y+R+1);for(let x=0;x<w;x++){const x0=Math.max(0,x-R),x1=Math.min(w,x+R+1),n=(x1-x0)*(y1-y0),q=I[y1*W+x1]-I[y0*W+x1]-I[y1*W+x0]+I[y0*W+x0];o[y*w+x]=g[y*w+x]>q/n-15?255:0}}return o}
+async function prepImg(f){const i=await createImageBitmap(f),sc=200/Math.max(i.width,i.height),sw=Math.max(1,Math.round(i.width*sc)),sh=Math.max(1,Math.round(i.height*sc));
+const gray=(c,w,h)=>{const d=c.getContext('2d').getImageData(0,0,w,h).data,g=new Uint8Array(w*h);for(let p=0;p<g.length;p++)g[p]=.299*d[p*4]+.587*d[p*4+1]+.114*d[p*4+2];return g};
+let c=document.createElement('canvas');c.width=sw;c.height=sh;let x=c.getContext('2d');x.drawImage(i,0,0,sw,sh);
+const b=cropBox(gray(c,sw,sh),sw,sh),m=3,sx=b?Math.max(0,b.x0-m)/sc:0,sy=b?Math.max(0,b.y0-m)/sc:0,cw=b?Math.min(sw,b.x1+m+1)/sc-sx:i.width,ch=b?Math.min(sh,b.y1+m+1)/sc-sy:i.height,k=Math.min(3,3200/Math.max(cw,ch),Math.sqrt(7.5e6/(cw*ch)));
+c=document.createElement('canvas');c.width=Math.round(cw*k);c.height=Math.round(ch*k);x=c.getContext('2d');x.imageSmoothingQuality='high';x.drawImage(i,sx,sy,cw,ch,0,0,c.width,c.height);
+const w=c.width,h=c.height,o=binarize(gray(c,w,h),w,h),im=x.createImageData(w,h);for(let p=0;p<o.length;p++){const v=o[p];im.data[p*4]=im.data[p*4+1]=im.data[p*4+2]=v;im.data[p*4+3]=255}x.putImageData(im,0,0);return c}
+async function ocr(f){if(!window.Tesseract)await new Promise((ok,no)=>{const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';s.onload=ok;s.onerror=no;document.head.appendChild(s)});
+const cv=await prepImg(f),w=await Tesseract.createWorker('spa');let txt='';try{for(const m of['6','4']){await w.setParameters({tessedit_pageseg_mode:m});txt+=(await w.recognize(cv)).data.text+'\n'}}finally{await w.terminate()}
+$('dbg').textContent='Texto leído por el OCR:\n'+txt;return parse(txt)}
+const rncOk=r=>{if(r.length!==9)return r.length===11;let q=0;[7,9,8,6,5,4,3,2].forEach((w,i)=>q+=w*r[i]);const k=q%11;return(k==0?2:k==1?1:11-k)==r[8]};
+const ncfOk=x=>/^(B(0[1-4]|1[1-7])\d{8}|E(3[1-9]|4[0-7])\d{10})$/.test(x);
+function findNcf(t){for(const m of t.matchAll(/\b[BE][\dOoIl|]{2}\s?[\dOoIl|]{8,10}(?!\d)/gi)){const x=m[0].replace(/\s/g,'').toUpperCase(),y=x[0]+x.slice(1).replace(/O/g,'0').replace(/[IL|]/g,'1');if(ncfOk(y))return y}return ''}
+function findDate(t){let best='',sc=-9;for(const m of t.matchAll(/(\d{1,2})[\/.-](\d{1,2})[\/.-](20\d{2})/g)){if(+m[2]>12||+m[1]>31)continue;const c=t.slice(Math.max(0,m.index-28),m.index);let q=0;if(/v[aá]lid|vcto|vencim|l[ií]mite|hasta|expira/i.test(c))q-=5;if(/fecha/i.test(c))q+=3;if(q>sc){sc=q;best=`${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`}}return best}
+function parse(t){const o={},last=re=>{const a=[...t.matchAll(re)];return a.length?a[a.length-1][1].replace(/,/g,''):''};
+const nc=findNcf(t);if(nc)o.ncf=nc;const fd=findDate(t);if(fd)o.fc=fd;
+const cand=raw=>{const a=raw.replace(/\D/g,'');if(a.length===9||a.length===11)return a;const b=raw.trim().split(/\s+/)[0].replace(/\D/g,'');return b.length===9||b.length===11?b:''};
+const rn=[...t.matchAll(/R\.?\s?N\.?\s?C\.?[^\d\n]{0,12}([\d -]{9,16})/gi)].map(x=>cand(x[1])).filter(x=>x&&x!==S.rnc),al=[...t.matchAll(/\b\d{9}\b/g)].map(x=>x[0]).filter(x=>x!==S.rnc&&rncOk(x)),pv=rn.find(rncOk)||al[0]||rn[0];if(pv)o.prov=pv;
+const it=last(/ITBIS[^\d\n]{0,15}([\d,]+\.\d{2})/gi),pr=last(/(?:PROPINA|LEY)[^\d\n]{0,15}([\d,]+\.\d{2})/gi);let tt=last(/TOTAL[^\d\n]{0,15}([\d,]+\.\d{2})/gi);
+if(!tt){const am=[...t.matchAll(/\d{1,3}(?:,\d{3})*\.\d{2}|\d+\.\d{2}/g)].map(x=>N(x[0].replace(/,/g,'')));if(am.length)tt=String(Math.max(...am))}
+if(it)o.it=it;if(pr)o.pr=pr;if(tt)o.bi=M(N(tt)-N(it)-N(pr));
+if(/tarjeta|cardnet|visa|master ?card|aprobaci[oó]n/i.test(t))o.fpg='03';else if(/transferencia|cheque|dep[oó]sito/i.test(t))o.fpg='02';else if(/efectivo/i.test(t))o.fpg='01';
+return o}
+async function pdfText(f){const V='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';if(!window.pdfjsLib)await new Promise((ok,no)=>{const s=document.createElement('script');s.src=V+'pdf.min.js';s.onload=ok;s.onerror=no;document.head.appendChild(s)});
+pdfjsLib.GlobalWorkerOptions.workerSrc=V+'pdf.worker.min.js';const d=await pdfjsLib.getDocument({data:new Uint8Array(await f.arrayBuffer())}).promise;let out='';
+for(let p=1;p<=Math.min(d.numPages,3);p++){const c=await(await d.getPage(p)).getTextContent();let y=null;for(const i of c.items){const yy=i.transform[5];if(y!==null)out+=Math.abs(yy-y)>3?'\n':' ';out+=i.str;y=yy}out+='\n'}return out}
+function qo(t){try{const p=new URL(t).searchParams,g=k=>{const x=[...p.keys()].find(y=>y.toLowerCase()===k);return x?p.get(x):''};return{prov:g('rncemisor'),ncf:g('encf'),fc:dt(g('fechaemision')),tot:g('montototal')}}catch(e){return null}}
+async function readInv(f){let o={},src=[];
+try{const a=await ai(f);if(a){o=a;src.push('IA de Claude')}}catch(e){src.push('IA falló: '+e.message)}
+if(f.type.startsWith('image/')){const b=await createImageBitmap(f).catch(()=>null),t=b&&await qr(b),q=t&&qo(t);
+if(q){['prov','ncf','fc'].forEach(k=>{if(q[k])o[k]=q[k]});if(!o.bi&&!o.sv&&q.tot)o.bi=q.tot;src.push('QR')}
+if(!o.ncf||!o.prov||!(o.bi||o.sv)){try{const c=await ocr(f);for(const k in c)if(!o[k])o[k]=c[k];src.push('OCR')}catch(e){src.push('OCR falló ('+((e&&e.message)||'sin internet o descarga incompleta')+')')}}}
+if(f.type==='application/pdf'&&(!o.ncf||!o.prov||!(o.bi||o.sv))){try{const tx=await pdfText(f);$('dbg').textContent='Texto del PDF:\n'+tx;const c=parse(tx);for(const k in c)if(!o[k])o[k]=c[k];src.push('texto del PDF')}catch(e){src.push('PDF falló ('+((e&&e.message)||'sin internet la primera vez')+')')}}
+return{o,src:src.join(' + ')}}
+async function qr(img){if(!('BarcodeDetector'in window))return null;try{const r=await new BarcodeDetector({formats:['qr_code']}).detect(img);return r[0]?r[0].rawValue:null}catch(e){return null}}
+function fromQR(t){try{const p=new URL(t).searchParams,g=k=>[...p.keys()].find(x=>x.toLowerCase()===k)?p.get([...p.keys()].find(x=>x.toLowerCase()===k)):'';
+fill({prov:g('rncemisor'),ncf:g('encf'),fc:dt(g('fechaemision')),bi:g('montototal')});return true}catch(e){return false}}
+async function photo(inp){const f=inp.files[0];if(!f)return;inp.value='';await proc(f)}
+async function proc(f){cur=await thumb(f);$('err').textContent='Leyendo factura…';const{o,src}=await readInv(f);fill(o);$('err').textContent='Lectura: '+(src||'sin datos')+'. Revisa los campos antes de guardar.'}
+async function scan(){const v=$('v');if(stream){stop();return}if(!('BarcodeDetector'in window)){alert('Este navegador no lee QR. Usa "Foto de factura" o Chrome/Edge.');return}
+try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment',width:{ideal:3840},height:{ideal:2160}}})}catch(e){alert('Sin acceso a la cámara');return}
+v.srcObject=stream;v.hidden=false;v.play();$('vc').hidden=false;$('err').textContent='Apunta al código QR. Si la factura no tiene QR, toca Capturar factura.';const d=new BarcodeDetector({formats:['qr_code']});
+const lp=async()=>{if(!stream)return;try{const r=await d.detect(v);if(r[0]&&fromQR(r[0].rawValue)){stop();$('err').textContent='QR leído: revisa los montos.';return}}catch(e){}setTimeout(lp,300)};lp()}
+function stop(){if(stream)stream.getTracks().forEach(t=>t.stop());stream=null;$('v').hidden=true;$('vc').hidden=true}
+async function snap(){const v=$('v');if(!v.videoWidth)return;const c=document.createElement('canvas');c.width=v.videoWidth;c.height=v.videoHeight;c.getContext('2d').drawImage(v,0,0);const b=await new Promise(r=>c.toBlob(r,'image/jpeg',.92));stop();await proc(new File([b],'captura.jpg',{type:'image/jpeg'}))}
+async function imp(inp){let n=0,rep=[];for(const f of inp.files){const nm=f.name.toLowerCase();
+if(nm.endsWith('.xml')){const x=new DOMParser().parseFromString(await f.text(),'text/xml'),g=t=>(x.getElementsByTagName(t)[0]||{}).textContent||'';
+S.rows.push({prov:g('RNCEmisor'),ncf:g('eNCF'),fc:dt(g('FechaEmision')),fp:'',tg:'02',sv:'',bi:g('MontoTotal')?M(N(g('MontoTotal'))-N(g('TotalITBIS'))):'',it:g('TotalITBIS'),ir:'',pr:'',fpg:'04'});n++}
+else if(f.type.startsWith('image/')||nm.endsWith('.pdf')){$('err').textContent='Leyendo '+f.name+'…';const im=f.type.startsWith('image/')?await thumb(f):null,{o,src}=await readInv(f);rep.push(f.name+': '+(src||'nada leído')+(o.ncf||o.prov||o.bi||o.sv?'':' → sin datos'));S.rows.push({prov:'',ncf:'',fc:'',fp:'',tg:'02',sv:'',bi:'',it:'',ir:'',pr:'',fpg:'01',...o,img:im});n++}
+else{const L=(await f.text()).split(/\r?\n/).filter(l=>l.trim());for(const l of L){const c=l.split(/[,;|\t]/).map(s=>s.trim());if(!/^\d{9,11}$/.test(c[0]))continue;
+S.rows.push({prov:c[0],ncf:(c[1]||'').toUpperCase(),fc:dt(c[2]),fp:'',tg:'02',sv:c[3]||'',bi:c[4]||'',it:c[5]||'',ir:'',pr:'',fpg:c[6]||'01'});n++}}}
+sv();render();inp.value='';$('err').textContent=rep.join(' | ');alert(n+' comprobante(s) importado(s). Los marcados con ⚠ necesitan revisión.\n\n'+rep.join('\n'))}
+const HD=['RNC o Cédula','Tipo Id','Tipo Bienes y Servicios Comprados','NCF','NCF o Documento Modificado','Fecha Comprobante','Fecha Pago','Monto Facturado en Servicios','Monto Facturado en Bienes','Total Monto Facturado','ITBIS Facturado','ITBIS Retenido','ITBIS sujeto a Proporcionalidad','ITBIS llevado al Costo','ITBIS por Adelantar','ITBIS percibido en compras','Tipo de Retención en ISR','Monto Retención Renta','ISR Percibido en compras','Impuesto Selectivo al Consumo','Otros Impuestos/Tasas','Monto Propina Legal','Forma de Pago'];
+function fld(o){const t=N(o.sv)+N(o.bi);return[o.prov,o.prov.length==9?1:2,o.tg,o.ncf,'',D(o.fc),D(o.fp),M(o.sv),M(o.bi),M(t),M(o.it),o.ir?M(o.ir):'','','',M(o.it),'','','','','','',o.pr?M(o.pr):'',o.fpg]}
+const HDX=['RNC o Cédula','Tipo Id','Tipo Bienes y Servicios Comprados','NCF','NCF o Documento Modificado','Fecha Comprobante (AAAAMM)','Fecha Comprobante (día)','Fecha Pago (AAAAMM)','Fecha Pago (día)',...HD.slice(7)];
+function fldX(o){const f=fld(o),c=D(o.fc),p=D(o.fp);return[...f.slice(0,5),c.slice(0,6),c.slice(6,8),p.slice(0,6),p.slice(6,8),...f.slice(7)]}
+async function cp(h){sv();if(!S.rows.length){alert('No hay comprobantes guardados todavía.');return}
+const t=[...(h?[HDX.join('\t')]:[]),...S.rows.map(o=>{const f=fldX(o);if(h&&/^0/.test(f[0]))f[0]="'"+f[0];return f.join('\t')})].join('\n');
+try{await navigator.clipboard.writeText(t)}catch(e){const a=document.createElement('textarea');a.value=t;document.body.appendChild(a);a.select();document.execCommand('copy');a.remove()}
+alert('Copiado ('+S.rows.length+' filas). '+(h?'Pégalo en la celda A1 de una hoja nueva.':'En la herramienta de la DGII toca la celda B12 y pega con Pegar especial → Valores.'))}
+function ver(){sv();if(!S.rows.length){alert('No hay comprobantes guardados todavía.');return}
+$('rt').innerHTML='<thead><tr>'+HDX.map((h,i)=>`<th title="${h}">${String.fromCharCode(66+i)}</th>`).join('')+'</tr></thead><tbody>'+S.rows.map(o=>'<tr>'+fldX(o).map(v=>`<td>${v}</td>`).join('')+'</tr>').join('')+'</tbody>';$('rep').hidden=false;$('rep').scrollIntoView()}
+function exp(){sv();if(!S.rows.length){alert('No hay comprobantes guardados. Importa o agrega comprobantes primero: el reporte saldría vacío.');return}if(!/^\d{6}$/.test(S.per)&&S.rows[0]&&S.rows[0].fc){const p=D(S.rows[0].fc).slice(0,6);if(confirm('Falta el período. ¿Usar '+p+'?')){S.per=p;$('per').value=p;sv()}}
+if(!/^(\d{9}|\d{11})$/.test(S.rnc)){alert('Tu RNC o cédula debe tener 9 u 11 dígitos, solo números. Ahora tiene '+S.rnc.length+'.');return}
+if(!/^\d{6}$/.test(S.per)){alert('Escribe el período como AAAAMM, por ejemplo 202610 (año 2026, mes 10). Lo que ves en gris es solo un ejemplo.');return}
+const bad=S.rows.filter(o=>chk(o).length).length;if(bad&&!confirm(bad+' comprobante(s) con avisos. ¿Generar de todas formas?'))return;
+const L=S.rows.map(o=>fld(o).join('|'));
+dlf(['606',S.rnc,S.per,S.rows.length].join('|')+'\n'+L.join('\n'),`DGII_F_606_${S.rnc}_${S.per}.TXT`,'text/plain')}
+function dlf(txt,name,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([txt],{type}));a.download=name;a.click()}
+function bk(){dlf(JSON.stringify({...S,key:''}),'respaldo606.json','application/json')}
+async function rs(inp){try{const k=S.key;S=JSON.parse(await inp.files[0].text());S.key=k;localStorage.setItem('f606',JSON.stringify(S));render()}catch(e){alert('Archivo inválido')}inp.value=''}
+if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js');
+render();
+</script></body></html>
