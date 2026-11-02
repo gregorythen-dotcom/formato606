@@ -73,10 +73,12 @@ function chk(o){const e=[];if(!/^(\d{9}|\d{11})$/.test(o.prov))e.push(/^\d{10}$/
 if(!okNcf(o.ncf))e.push('NCF inválido (B + 10 dígitos, o E + 12 dígitos)');if(!o.fc)e.push('falta fecha');
 if(N(o.sv)+N(o.bi)<=0)e.push('falta monto');{const b=N(o.sv)+N(o.bi),i=N(o.it);if(i>0&&b>0){const r=i/b;if(r>.184)e.push('el ITBIS es mayor al 18% del monto: ¿el monto incluye el ITBIS?')}}if(S.per&&o.fc&&D(o.fc).slice(0,6)!==S.per)e.push('la fecha no es del período');return e}
 function rd(){const o={};F.forEach(k=>o[k]=$(k).value.trim());o.ncf=o.ncf.toUpperCase();if(cur)o.img=cur;return o}
-function fill(o){F.forEach(k=>{if(o[k]!=null)$(k).value=o[k]})}
+function fill(o){F.forEach(k=>{if(o[k]!=null)$(k).value=o[k]});if(ed<0)pdSet(o.prov)}
+function pdSet(r){const d=(S.pd||{})[r];if(d){if(d.tg)$('tg').value=d.tg;if(d.fpg)$('fpg').value=d.fpg}}
+function apd(o){const d=(S.pd||{})[o.prov];if(d){if(d.tg)o.tg=d.tg;if(d.fpg)o.fpg=d.fpg}}
 function clr(){F.forEach(k=>$(k).value='');$('tg').value='02';$('fpg').value='01';$('kd').value='b';$('nu').value=nxt();cur=null;ed=-1;edId=null;$('ab').textContent='Guardar';$('err').textContent=''}
 function add(){const o=rd();if(/^\d{10}$/.test(o.prov)&&confirm('El RNC/cédula tiene 10 dígitos. Las cédulas tienen 11 y muchas empiezan con 0 (por ejemplo 001). ¿Agregar un 0 al inicio?'))o.prov='0'+o.prov;if(!parseInt(o.nu))o.nu=String(nxt());else o.nu=String(parseInt(o.nu));const dup=S.rows.some(r=>r.id!==edId&&String(r.nu)===o.nu);const e=chk(o);if(dup)e.push('el N.º '+o.nu+' ya está usado en otra factura');if(e.length&&!confirm('Hay avisos:\n- '+e.join('\n- ')+'\n¿Guardar de todas formas?'))return;
-const k=edId?S.rows.findIndex(r=>r.id===edId):-1;o.ts=Date.now();if(k>=0){o.id=edId;S.rows[k]=o}else{o.id=uid();S.rows.push(o)}sv();clr();render()}
+const k=edId?S.rows.findIndex(r=>r.id===edId):-1;S.pd=S.pd||{};if(o.prov)S.pd[o.prov]={tg:o.tg,fpg:o.fpg};o.ts=Date.now();if(k>=0){o.id=edId;S.rows[k]=o}else{o.id=uid();S.rows.push(o)}sv();clr();render()}
 function render(){$('rnc').value=S.rnc||'';$('key').value=S.key||'';$('per').value=S.per||'';$('n').textContent=S.rows.length;if(ed<0){const v=$('nu').value;if(!v||S.rows.some(r=>String(r.nu)===v))$('nu').value=nxt()}
 $('tb').innerHTML=S.rows.map((o,i)=>[o,i]).sort((a,b)=>(parseInt(a[0].nu)||1e9)-(parseInt(b[0].nu)||1e9)||a[1]-b[1]).map(([o,i])=>{const e=chk(o);return`<tr><td><b>${o.nu||''}</b></td><td>${o.img?`<img class="th" src="${o.img}">`:''}</td><td>${o.prov}</td><td class="${e.length?'bad':''}" title="${e.join('; ')}">${o.ncf}${e.length?' ⚠':''}</td><td>${o.fc}</td><td>${M(N(o.sv)+N(o.bi))}</td><td>${M(o.it)}</td><td><button class="s" onclick="ld(${i})">Editar</button> <button class="s" onclick="dl(${i})">✕</button></td></tr>`}).join('')}
 function ld(i){clr();ed=i;edId=S.rows[i].id;cur=S.rows[i].img||null;fill(S.rows[i]);$('ab').textContent='Actualizar';scrollTo(0,0)}
@@ -156,15 +158,16 @@ let it=0;for(const x of t.matchAll(/\d{2}\/\d{2}\/\d{4}\s+\d+\s+([\d,]*\.\d{2})\
 async function bankPdf(f,rep){const pg=await pdfPages(f);if(pg.length<2)return-1;const ok=pg.filter(t=>/Total\s*NCF/i.test(t)&&/E-?\s?NCF/i.test(t));if(ok.length<pg.length/2)return-1;
 const tg=($('btg').value||'02'),fp=($('bfp').value||'02');let n=0,dup=0,bad=[];
 pg.forEach((t,i)=>{const b=bankPg(t);if(!b.ncf||!b.tot||!b.prov){bad.push(i+1);return}if(S.rows.some(r=>r.ncf===b.ncf)){dup++;return}
-S.rows.push({prov:b.prov,ncf:b.ncf,fc:b.fc,fp:'',tg,sv:M(N(b.tot)-b.it),bi:'',it:b.it?M(b.it):'',ir:'',pr:'',fpg:fp,tt:M(N(b.tot)),kd:'s'});n++});
+S.pd=S.pd||{};if(!S.pd[b.prov])S.pd[b.prov]={tg,fpg:fp};S.rows.push({prov:b.prov,ncf:b.ncf,fc:b.fc,fp:'',tg,sv:M(N(b.tot)-b.it),bi:'',it:b.it?M(b.it):'',ir:'',pr:'',fpg:fp,tt:M(N(b.tot)),kd:'s'});n++});
 rep.push(f.name+': '+n+' facturas (una por página)'+(dup?', '+dup+' ya estaban (repetidas)':'')+(bad.length?', sin datos en página(s) '+bad.join(','):''));return n}
-async function imp(inp){let n=0,rep=[];for(const f of inp.files){const nm=f.name.toLowerCase();
+async function imp(inp){let n=0,rep=[];for(const f of inp.files){const s0=S.rows.length,nm=f.name.toLowerCase();
 if(nm.endsWith('.pdf')){$('err').textContent='Leyendo '+f.name+'…';const r=await bankPdf(f,rep);if(r>=0){n+=r;continue}}
 if(nm.endsWith('.xml')){const x=new DOMParser().parseFromString(await f.text(),'text/xml'),g=t=>(x.getElementsByTagName(t)[0]||{}).textContent||'';
 S.rows.push({prov:g('RNCEmisor'),ncf:g('eNCF'),fc:dt(g('FechaEmision')),fp:'',tg:'02',sv:'',bi:g('MontoTotal')?M(N(g('MontoTotal'))-N(g('TotalITBIS'))):'',it:g('TotalITBIS'),ir:'',pr:'',fpg:'04'});n++}
 else if(f.type.startsWith('image/')||nm.endsWith('.pdf')){$('err').textContent='Leyendo '+f.name+'…';const im=f.type.startsWith('image/')?await thumb(f):null,{o,src}=await readInv(f);rep.push(f.name+': '+(src||'nada leído')+(o.ncf||o.prov||o.bi||o.sv?'':' → sin datos'));S.rows.push({prov:'',ncf:'',fc:'',fp:'',tg:'02',sv:'',bi:'',it:'',ir:'',pr:'',fpg:'01',...o,img:im});n++}
 else{const L=(await f.text()).split(/\r?\n/).filter(l=>l.trim());for(const l of L){const c=l.split(/[,;|\t]/).map(s=>s.trim());if(!/^\d{9,11}$/.test(c[0]))continue;
-S.rows.push({prov:c[0],ncf:(c[1]||'').toUpperCase(),fc:dt(c[2]),fp:'',tg:'02',sv:c[3]||'',bi:c[4]||'',it:c[5]||'',ir:'',pr:'',fpg:c[6]||'01'});n++}}}
+S.rows.push({prov:c[0],ncf:(c[1]||'').toUpperCase(),fc:dt(c[2]),fp:'',tg:'02',sv:c[3]||'',bi:c[4]||'',it:c[5]||'',ir:'',pr:'',fpg:c[6]||'01'});n++}}
+S.rows.slice(s0).forEach(apd)}
 sv();render();inp.value='';$('err').textContent=rep.join(' | ');alert(n+' comprobante(s) importado(s). Los marcados con ⚠ necesitan revisión.\n\n'+rep.join('\n'))}
 const HD=['RNC o Cédula','Tipo Id','Tipo Bienes y Servicios Comprados','NCF','NCF o Documento Modificado','Fecha Comprobante','Fecha Pago','Monto Facturado en Servicios','Monto Facturado en Bienes','Total Monto Facturado','ITBIS Facturado','ITBIS Retenido','ITBIS sujeto a Proporcionalidad','ITBIS llevado al Costo','ITBIS por Adelantar','ITBIS percibido en compras','Tipo de Retención en ISR','Monto Retención Renta','ISR Percibido en compras','Impuesto Selectivo al Consumo','Otros Impuestos/Tasas','Monto Propina Legal','Forma de Pago'];
 function fld(o){const t=N(o.sv)+N(o.bi);return[o.prov,o.prov.length==9?1:2,o.tg,o.ncf,'',D(o.fc),D(o.fp),M(o.sv),M(o.bi),M(t),M(o.it),o.ir?M(o.ir):'','','',M(o.it),'','','','','','',o.pr?M(o.pr):'',o.fpg]}
@@ -237,11 +240,11 @@ if(first&&!fc){const sid=new Set(sn.docs.map(d=>d.id));S.rows=S.rows.filter(r=>s
 sn.docChanges().forEach(ch=>{const id=ch.doc.id;if(ch.type==='removed'){S.rows=S.rows.filter(r=>r.id!==id);delete R[id]}else{const d=ch.doc.data();d.id=id;const i=S.rows.findIndex(r=>r.id===id);if(i>=0&&(S.rows[i].ts||0)>(d.ts||0))return;R[id]=JSON.stringify(d);if(i<0)S.rows.push(d);else S.rows[i]=d}});
 if(first&&!fc)FB.ready=true;if(!fc){try{localStorage.setItem('f606ls',String(Date.now()))}catch(e){}}
 local();render();st((fc?'Cargando datos… ':'Sincronizado ✓ ')+new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}));if(first&&!fc)push()}
-function onMeta(d){if(!d.exists||(d.metadata&&d.metadata.hasPendingWrites))return;const m=d.data();RM=JSON.stringify({rnc:m.rnc||'',per:m.per||''});let c=0;if(m.rnc&&m.rnc!==S.rnc){S.rnc=m.rnc;c=1}if(m.per&&m.per!==S.per){S.per=m.per;c=1}if(c){local();render()}}
+function onMeta(d){if(!d.exists||(d.metadata&&d.metadata.hasPendingWrites))return;const m=d.data();let c=0;if(m.pd&&JSON.stringify({...S.pd,...m.pd})!==JSON.stringify(S.pd||{})){S.pd={...S.pd,...m.pd};c=1}RM=JSON.stringify({rnc:m.rnc||'',per:m.per||'',pd:S.pd||{}});if(m.rnc&&m.rnc!==S.rnc){S.rnc=m.rnc;c=1}if(m.per&&m.per!==S.per){S.per=m.per;c=1}if(c){local();render()}}
 function push(){if(!FB||!FB.ready)return;const b=FB.db.collection('users').doc(FB.u.uid),ids=new Set();S.rows.forEach(o=>{if(!o.id)o.id=uid()});
 S.rows.forEach(o=>{ids.add(o.id);const j=JSON.stringify(o);if(R[o.id]!==j){R[o.id]=j;b.collection('rows').doc(o.id).set(JSON.parse(j)).catch(e=>st('Error al subir: '+e.message))}});
 Object.keys(R).forEach(id=>{if(!ids.has(id)){delete R[id];b.collection('rows').doc(id).delete().catch(()=>{})}});
-const m=JSON.stringify({rnc:S.rnc||'',per:S.per||''});if(m!==RM){RM=m;b.collection('meta').doc('main').set({rnc:S.rnc||'',per:S.per||''}).catch(()=>{})}}
+const md={rnc:S.rnc||'',per:S.per||'',pd:S.pd||{}},m=JSON.stringify(md);if(m!==RM){RM=m;b.collection('meta').doc('main').set(md).catch(()=>{})}}
 async function fbInit(){const c=CF();if(!c||!c.cfg)return;st('Conectando…');
 try{const V='https://www.gstatic.com/firebasejs/10.12.2/';if(!window.firebase){await ld2(V+'firebase-app-compat.js');await ld2(V+'firebase-auth-compat.js');await ld2(V+'firebase-firestore-compat.js')}
 if(!firebase.apps.length)firebase.initializeApp(c.cfg);const db=firebase.firestore();try{await db.enablePersistence({synchronizeTabs:true})}catch(e){}
@@ -255,6 +258,6 @@ localStorage.setItem('f606cfg',JSON.stringify({cfg}));await fbInit();if(!window.
 try{const a=firebase.auth(),e=$('fem').value.trim(),p=$('fpw').value;if(c){await a.createUserWithEmailAndPassword(e,p);try{localStorage.setItem('f606em',e)}catch(x){}$('syd').open=false}else await a.signInWithEmailAndPassword(e,p);$('fpw').value='';try{localStorage.setItem('f606em',e)}catch(x){}$('syd').open=false}catch(x){alert('No se pudo entrar: '+x.message)}}
 async function fbOut(){try{if(window.firebase)await firebase.auth().signOut()}catch(e){}FB=null;R={};ui(null);st('Sesión cerrada (los datos siguen en este equipo)')}
 try{$('fem').value=localStorage.getItem('f606em')||''}catch(e){}
-$('btg').innerHTML=$('tg').innerHTML;$('bfp').innerHTML=$('fpg').innerHTML;try{$('btg').value=localStorage.getItem('f606btg')||'07';$('bfp').value=localStorage.getItem('f606bfp')||'02'}catch(e){}
+$('prov').addEventListener('change',()=>{if(ed<0)pdSet($('prov').value.replace(/\D/g,''))});$('btg').innerHTML=$('tg').innerHTML;$('bfp').innerHTML=$('fpg').innerHTML;try{$('btg').value=localStorage.getItem('f606btg')||'07';$('bfp').value=localStorage.getItem('f606bfp')||'02'}catch(e){}
 render();if(S.rows.some(o=>!parseInt(o.nu)))sv();clr();render();ui(null);fbInit();
 </script></body></html>
