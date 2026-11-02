@@ -21,7 +21,7 @@ button,.btn{padding:10px 14px;border:0;border-radius:8px;background:var(--a);col
 <div id="cfgbox" style="margin-top:10px"><label>Configuración de Firebase (solo la primera vez en cada equipo)</label><textarea id="fcfg" rows="4" placeholder="const firebaseConfig = { apiKey: ..., projectId: ... };"></textarea></div>
 <div id="lgbox"><div class="g" style="margin-top:8px"><div><label>Correo</label><input id="fem" type="email" autocomplete="email"></div><div><label>Contraseña</label><input id="fpw" type="password" autocomplete="current-password"></div></div>
 <div class="row"><button onclick="fbIn(0)">Iniciar sesión</button><button class="s" onclick="fbIn(1)">Crear cuenta</button></div></div>
-<div class="row"><button class="s" onclick="fbOut()">Desconectar</button></div></details>
+<div class="row"><button class="s" onclick="pushAll()">Subir todo a la nube ahora</button><button class="s" onclick="fbOut()">Desconectar</button></div></details>
 <div class="card"><h2>Lectura con IA</h2><label>Clave API de Anthropic (opcional; se guarda solo en este teléfono)</label><input id="key" type="password" autocomplete="off"><p class="m">Con internet y clave: lee con la IA de Claude. Sin clave o sin internet: OCR en el teléfono (la primera vez necesita internet para descargarlo).</p></div>
 <div class="card"><h2>Agregar comprobante</h2>
 <div class="row" style="margin:0 0 10px">
@@ -240,13 +240,14 @@ let FB=null,R={},RM='',unsub=[];
 const FBCFG=null;
 const st=t=>{$('sst').textContent='☁ '+t},local=()=>{try{localStorage.setItem('f606',JSON.stringify(S))}catch(e){}};
 const CF=()=>{try{const c=JSON.parse(localStorage.getItem('f606cfg'));if(c&&c.cfg)return c}catch(e){}return FBCFG?{cfg:FBCFG}:null};
+function pushAll(){if(!FB){alert('Primero inicia sesión (correo y contraseña).');return}if(!confirm('Esto sube a la nube todo lo que hay en ESTE equipo ('+S.rows.length+' comprobantes), y los otros equipos lo recibirán. Úsalo en el equipo que tiene los datos correctos. ¿Continuar?'))return;sv();R={};RM='';FB.ready=true;push();st('Subiendo '+S.rows.length+' comprobantes…')}
 function ui(u){const c=!!CF();$('cfgbox').hidden=c||!!u;$('lgbox').hidden=!!u}
 function ld2(u){return new Promise((ok,no)=>{const x=document.createElement('script');x.src=u;x.onload=ok;x.onerror=no;document.head.appendChild(x)})}
 function onRows(sn){const first=!!FB&&!FB.ready,fc=sn.metadata&&sn.metadata.fromCache;let ls=0;try{ls=+localStorage.getItem('f606ls')||0}catch(e){}
 if(first&&!fc){const sid=new Set(sn.docs.map(d=>d.id));S.rows=S.rows.filter(r=>sid.has(r.id)||(r.ts||0)>ls||(!ls&&sn.empty))}
 sn.docChanges().forEach(ch=>{const id=ch.doc.id;if(ch.type==='removed'){S.rows=S.rows.filter(r=>r.id!==id);delete R[id]}else{const d=ch.doc.data();d.id=id;const i=S.rows.findIndex(r=>r.id===id);if(i>=0&&(S.rows[i].ts||0)>(d.ts||0))return;R[id]=JSON.stringify(d);if(i<0)S.rows.push(d);else S.rows[i]=d}});
-if(first&&!fc)FB.ready=true;if(!fc){try{localStorage.setItem('f606ls',String(Date.now()))}catch(e){}}
-local();render();st((fc?'Cargando datos… ':'Sincronizado ✓ ')+new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}));if(first&&!fc)push()}
+if(first&&(!fc||!sn.empty))FB.ready=true;if(!fc){try{localStorage.setItem('f606ls',String(Date.now()))}catch(e){}}
+local();render();st((fc?'Cargando datos… ':'Sincronizado ✓ ')+new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}));if(first&&FB.ready)push()}
 function onMeta(d){if(!d.exists||(d.metadata&&d.metadata.hasPendingWrites))return;const m=d.data();let c=0;if(m.pd&&JSON.stringify({...S.pd,...m.pd})!==JSON.stringify(S.pd||{})){S.pd={...S.pd,...m.pd};c=1}RM=JSON.stringify({rnc:m.rnc||'',per:m.per||'',pd:S.pd||{}});if(m.rnc&&m.rnc!==S.rnc){S.rnc=m.rnc;c=1}if(m.per&&m.per!==S.per){S.per=m.per;c=1}if(c){local();render()}}
 function push(){if(!FB||!FB.ready)return;const b=FB.db.collection('users').doc(FB.u.uid),ids=new Set();S.rows.forEach(o=>{if(!o.id)o.id=uid()});
 S.rows.forEach(o=>{ids.add(o.id);const j=JSON.stringify(o);if(R[o.id]!==j){R[o.id]=j;b.collection('rows').doc(o.id).set(JSON.parse(j)).catch(e=>st('Error al subir: '+e.message))}});
