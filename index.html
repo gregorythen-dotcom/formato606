@@ -35,6 +35,7 @@ button,.btn{padding:10px 14px;border:0;border-radius:8px;background:var(--a);col
 <div><label>N.º de factura (orden)</label><input id="nu" type="number" min="1" inputmode="numeric"></div>
 <div><label>RNC/cédula proveedor</label><input id="prov" inputmode="numeric" maxlength="11"></div>
 <div><label>NCF / e-NCF</label><input id="ncf" maxlength="13"></div>
+<div><label>NCF modificado (solo nota de crédito)</label><input id="nm" maxlength="13"></div>
 <div><label>Fecha del comprobante</label><input id="fc" type="date"></div>
 <div><label>Fecha de pago</label><input id="fp" type="date"></div>
 <div><label>Tipo de gasto</label><select id="tg"><option value="01">01 Personal</option><option value="02" selected>02 Trabajos, suministros y servicios</option><option value="03">03 Arrendamientos</option><option value="04">04 Activos fijos</option><option value="05">05 Representación</option><option value="06">06 Otras deducciones admitidas</option><option value="07">07 Financieros</option><option value="08">08 Extraordinarios</option><option value="09">09 Costo de venta</option><option value="10">10 Adquisiciones de activos</option><option value="11">11 Seguros</option></select></div>
@@ -61,7 +62,7 @@ const $=i=>document.getElementById(i);let S={rnc:'',per:'',rows:[]},ed=-1,edId=n
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,8);
 try{S=JSON.parse(localStorage.getItem('f606'))||S}catch(e){}
 S.rows=S.rows||[];S.rows.forEach(o=>{if(!o.id)o.id=uid()});
-const F=['nu','prov','ncf','fc','fp','tg','sv','bi','it','ir','pr','fpg','tt','kd'];
+const F=['nu','prov','ncf','nm','fc','fp','tg','sv','bi','it','ir','pr','fpg','tt','kd'];
 function calc(){const t=N($('tt').value);if(!t){alert('Escribe el total de la factura (el que incluye el ITBIS).');return}const b=M(t-N($('it').value)-N($('pr').value));if($('kd').value==='s'){$('sv').value=b;$('bi').value=''}else{$('bi').value=b;$('sv').value=''}}
 const nxt=()=>S.rows.reduce((m,r)=>Math.max(m,parseInt(r.nu)||0),0)+1;
 const RS=()=>S.rows.map((o,i)=>[o,i]).sort((a,b)=>(parseInt(a[0].nu)||1e9)-(parseInt(b[0].nu)||1e9)||a[1]-b[1]).map(x=>x[0]);
@@ -70,7 +71,7 @@ $('rnc').oninput=$('per').oninput=$('key').oninput=sv;
 const N=x=>parseFloat(x)||0,M=x=>N(x).toFixed(2),D=x=>(x||'').replace(/-/g,'');
 const okNcf=x=>/^(B\d{10}|E\d{12})$/i.test(x);
 function chk(o){const e=[];if(!/^(\d{9}|\d{11})$/.test(o.prov))e.push(/^\d{10}$/.test(o.prov)?'La cédula tiene 10 dígitos: ¿falta un 0 al inicio?':'RNC/cédula del proveedor debe tener 9 u 11 dígitos');else if(o.prov.length===9&&!rncOk(o.prov))e.push('El dígito verificador de este RNC no coincide: revisa que esté bien leído (algunos RNC válidos pueden salir así)');
-if(!okNcf(o.ncf))e.push('NCF inválido (B + 10 dígitos, o E + 12 dígitos)');if(!o.fc)e.push('falta fecha');
+if(!okNcf(o.ncf))e.push('NCF inválido (B + 10 dígitos, o E + 12 dígitos)');if(o.nm&&!okNcf(o.nm))e.push('NCF modificado inválido');if(!o.fc)e.push('falta fecha');
 if(N(o.sv)+N(o.bi)<=0)e.push('falta monto');{const b=N(o.sv)+N(o.bi),i=N(o.it);if(i>0&&b>0){const r=i/b;if(r>.184)e.push('el ITBIS es mayor al 18% del monto: ¿el monto incluye el ITBIS?')}}if(S.per&&o.fc&&D(o.fc).slice(0,6)!==S.per)e.push('la fecha no es del período');return e}
 function rd(){const o={};F.forEach(k=>o[k]=$(k).value.trim());o.ncf=o.ncf.toUpperCase();if(cur)o.img=cur;return o}
 function fill(o){F.forEach(k=>{if(o[k]!=null)$(k).value=o[k]});if(ed<0)pdSet(o.prov)}
@@ -152,14 +153,20 @@ async function snap(){const v=$('v');if(!v.videoWidth)return;const c=document.cr
 async function pdfPages(f){try{const V='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';if(!window.pdfjsLib)await new Promise((ok,no)=>{const s=document.createElement('script');s.src=V+'pdf.min.js';s.onload=ok;s.onerror=no;document.head.appendChild(s)});
 pdfjsLib.GlobalWorkerOptions.workerSrc=V+'pdf.worker.min.js';const d=await pdfjsLib.getDocument({data:new Uint8Array(await f.arrayBuffer())}).promise,r=[];
 for(let p=1;p<=d.numPages;p++){const c=await(await d.getPage(p)).getTextContent();let out='',y=null;for(const i of c.items){const yy=i.transform[5];if(y!==null)out+=Math.abs(yy-y)>3?'\n':' ';out+=i.str;y=yy}r.push(out)}return r}catch(e){return[]}}
-function bankPg(t){const g=re=>{const m=t.match(re);return m?m[1]:''},ncf=g(/E-?\s?NCF:?\s*(E\d{12})/i),tot=g(/Total\s*NCF:?\s*([\d,]*\.\d{2})/i).replace(/,/g,''),prov=g(/\bRNC:?\s*([\d][\d -]{7,14})/i).replace(/\D/g,'');
-let m=t.match(/Fecha\s*emisi[oó]n:?\s*(\d{2})\s*\/\s*(\d{2})\s*\/\s*(\d{4})/i)||t.match(/(\d{2})\/(\d{2})\/(\d{4})/);const fc=m?`${m[3]}-${m[2]}-${m[1]}`:'';
-let it=0;for(const x of t.matchAll(/\d{2}\/\d{2}\/\d{4}\s+\d+\s+([\d,]*\.\d{2})\s+[\d,]*\.\d{2}/g))it+=N(x[1].replace(/,/g,''));if(it>N(tot))it=0;return{ncf,tot,prov,fc,it}}
+function bankPg(t){const u=t.replace(/\s+/g,' '),nm=(u.match(/E-?\s?NCF\s*Modificado:?\s*(E\d{12}|B\d{10})/i)||[])[1]||'';
+let ncf=(u.match(/E-?\s?NCF:?\s*(E\d{12})/i)||[])[1]||'';if(!ncf)ncf=([...u.matchAll(/\bE\d{12}\b/g)].map(x=>x[0]).filter(x=>x!==nm)[0])||'';
+const am=[...u.matchAll(/(\d{1,3}(?:,\d{3})+|\d+)?\.\d{2}(?!\d)/g)].map(x=>N(x[0].replace(/,/g,'')));
+let tot=(u.match(/Total\s*NCF:?\s*((?:\d{1,3}(?:,\d{3})+|\d+)?\.\d{2})/i)||[])[1];tot=tot?tot.replace(/,/g,''):(am.length?String(Math.max(...am)):'');
+const rn=[...u.matchAll(/\b(\d)\s*-\s*(\d{2})\s*-\s*(\d{5})\s*-\s*(\d)\b|\b\d{9}\b/g)].map(x=>x[0].replace(/\D/g,'')).filter(x=>x!==S.rnc),prov=rn[0]||'';
+const dm=re=>{const m=u.match(re);return m?`${m[3]}-${m[2]}-${m[1]}`:''};
+let fc=dm(/Fecha\s*emisi.n:?\s*(\d{2})\s*\/\s*(\d{2})\s*\/\s*(\d{4})/i)||dm(/(\d{2})\/(\d{2})\/(\d{4})\s+\d+\s+(?:\d[\d,]*)?\.\d{2}\s+(?:\d[\d,]*)?\.\d{2}/);
+if(!fc){const d=[...u.matchAll(/(\d{2})\s*\/\s*(\d{2})\s*\/\s*(\d{4})/g)].map(x=>`${x[3]}-${x[2]}-${x[1]}`),c={};d.forEach(x=>c[x]=(c[x]||0)+1);fc=Object.keys(c).sort((a,b)=>c[b]-c[a])[0]||''}
+let it=0;for(const x of u.matchAll(/\d{2}\/\d{2}\/\d{4}\s+\d+\s+((?:\d[\d,]*)?\.\d{2})\s+(?:\d[\d,]*)?\.\d{2}/g))it+=N(x[1].replace(/,/g,''));if(it>N(tot))it=0;return{ncf,tot,prov,fc,it,nm,nc:/NOTA\s+DE\s+CR/i.test(u)}}
 async function bankPdf(f,rep){const pg=await pdfPages(f);if(pg.length<2)return-1;const ok=pg.filter(t=>/Total\s*NCF/i.test(t)&&/E-?\s?NCF/i.test(t));if(ok.length<pg.length/2)return-1;
-const tg=($('btg').value||'02'),fp=($('bfp').value||'02');let n=0,dup=0,bad=[];
+const tg=($('btg').value||'02'),fp=($('bfp').value||'02');let n=0,dup=0,nc=0,bad=[];
 pg.forEach((t,i)=>{const b=bankPg(t);if(!b.ncf||!b.tot||!b.prov){bad.push(i+1);return}if(S.rows.some(r=>r.ncf===b.ncf)){dup++;return}
-S.pd=S.pd||{};if(!S.pd[b.prov])S.pd[b.prov]={tg,fpg:fp};S.rows.push({prov:b.prov,ncf:b.ncf,fc:b.fc,fp:'',tg,sv:M(N(b.tot)-b.it),bi:'',it:b.it?M(b.it):'',ir:'',pr:'',fpg:fp,tt:M(N(b.tot)),kd:'s'});n++});
-rep.push(f.name+': '+n+' facturas (una por página)'+(dup?', '+dup+' ya estaban (repetidas)':'')+(bad.length?', sin datos en página(s) '+bad.join(','):''));return n}
+S.pd=S.pd||{};if(!S.pd[b.prov])S.pd[b.prov]={tg,fpg:fp};S.rows.push({prov:b.prov,ncf:b.ncf,nm:b.nm||'',fc:b.fc,fp:'',tg,sv:M(N(b.tot)-b.it),bi:'',it:b.it?M(b.it):'',ir:'',pr:'',fpg:fp,tt:M(N(b.tot)),kd:'s'});if(b.nc)nc++;n++});
+rep.push(f.name+': '+n+' facturas (una por página)'+(dup?', '+dup+' ya estaban (repetidas)':'')+(nc?', '+nc+' nota(s) de crédito':'')+(bad.length?', sin datos en página(s) '+bad.join(','):''));if(!n&&bad.length)rep.push('Texto leído en la página 1 (para diagnóstico): '+pg[0].replace(/\s+/g,' ').slice(0,350));return n}
 async function imp(inp){let n=0,rep=[];for(const f of inp.files){const s0=S.rows.length,nm=f.name.toLowerCase();
 if(nm.endsWith('.pdf')){$('err').textContent='Leyendo '+f.name+'…';const r=await bankPdf(f,rep);if(r>=0){n+=r;continue}}
 if(nm.endsWith('.xml')){const x=new DOMParser().parseFromString(await f.text(),'text/xml'),g=t=>(x.getElementsByTagName(t)[0]||{}).textContent||'';
@@ -170,7 +177,7 @@ S.rows.push({prov:c[0],ncf:(c[1]||'').toUpperCase(),fc:dt(c[2]),fp:'',tg:'02',sv
 S.rows.slice(s0).forEach(apd)}
 sv();render();inp.value='';$('err').textContent=rep.join(' | ');alert(n+' comprobante(s) importado(s). Los marcados con ⚠ necesitan revisión.\n\n'+rep.join('\n'))}
 const HD=['RNC o Cédula','Tipo Id','Tipo Bienes y Servicios Comprados','NCF','NCF o Documento Modificado','Fecha Comprobante','Fecha Pago','Monto Facturado en Servicios','Monto Facturado en Bienes','Total Monto Facturado','ITBIS Facturado','ITBIS Retenido','ITBIS sujeto a Proporcionalidad','ITBIS llevado al Costo','ITBIS por Adelantar','ITBIS percibido en compras','Tipo de Retención en ISR','Monto Retención Renta','ISR Percibido en compras','Impuesto Selectivo al Consumo','Otros Impuestos/Tasas','Monto Propina Legal','Forma de Pago'];
-function fld(o){const t=N(o.sv)+N(o.bi);return[o.prov,o.prov.length==9?1:2,o.tg,o.ncf,'',D(o.fc),D(o.fp),M(o.sv),M(o.bi),M(t),M(o.it),o.ir?M(o.ir):'','','',M(o.it),'','','','','','',o.pr?M(o.pr):'',o.fpg]}
+function fld(o){const t=N(o.sv)+N(o.bi);return[o.prov,o.prov.length==9?1:2,o.tg,o.ncf,(o.nm||'').toUpperCase(),D(o.fc),D(o.fp),M(o.sv),M(o.bi),M(t),M(o.it),o.ir?M(o.ir):'','','',M(o.it),'','','','','','',o.pr?M(o.pr):'',o.fpg]}
 const TGD={'01':'Gastos de personal','02':'Gastos por trabajos, suministros y servicios','03':'Arrendamientos','04':'Gastos de activos fijos','05':'Gastos de representación','06':'Otras deducciones admitidas','07':'Gastos financieros','08':'Gastos extraordinarios','09':'Compras y gastos que formarán parte del costo de venta','10':'Adquisiciones de activos','11':'Gastos de seguros'},FPD={'01':'Efectivo','02':'Cheques/Transferencias/Depósito','03':'Tarjeta crédito/débito','04':'Compra a crédito','05':'Permuta','06':'Notas de crédito','07':'Mixto'};
 const FD=()=>{try{return localStorage.getItem('f606fd')||'n'}catch(e){return'n'}};
 const FM=()=>{try{return localStorage.getItem('f606fm')||'cd'}catch(e){return'cd'}};
