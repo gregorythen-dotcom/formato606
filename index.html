@@ -17,10 +17,11 @@ button,.btn{padding:10px 14px;border:0;border-radius:8px;background:var(--a);col
 <div><label>Tu RNC o cédula</label><input id="rnc" inputmode="numeric" maxlength="11"></div>
 <div><label>Período (AAAAMM)</label><input id="per" inputmode="numeric" maxlength="6" placeholder="Ejemplo: 202610"></div></div></div>
 
-<div class="card"><h2>Sincronizar entre dispositivos</h2><p class="m" id="sst">Sin configurar.</p>
-<label>Configuración de Firebase (pégala aquí)</label><textarea id="fcfg" rows="4" placeholder="const firebaseConfig = { apiKey: ..., projectId: ... };"></textarea>
-<div class="g" style="margin-top:8px"><div><label>Correo</label><input id="fem" type="email" autocomplete="email"></div><div><label>Contraseña</label><input id="fpw" type="password" autocomplete="current-password"></div></div>
-<div class="row"><button onclick="fbIn(0)">Iniciar sesión</button><button class="s" onclick="fbIn(1)">Crear cuenta</button><button class="s" onclick="fbOut()">Desconectar</button></div></div>
+<details class="card" id="syd"><summary style="cursor:pointer;font-weight:600;font-size:14px"><span id="sst">☁ Sincronización: sin configurar</span></summary>
+<div id="cfgbox" style="margin-top:10px"><label>Configuración de Firebase (solo la primera vez en cada equipo)</label><textarea id="fcfg" rows="4" placeholder="const firebaseConfig = { apiKey: ..., projectId: ... };"></textarea></div>
+<div id="lgbox"><div class="g" style="margin-top:8px"><div><label>Correo</label><input id="fem" type="email" autocomplete="email"></div><div><label>Contraseña</label><input id="fpw" type="password" autocomplete="current-password"></div></div>
+<div class="row"><button onclick="fbIn(0)">Iniciar sesión</button><button class="s" onclick="fbIn(1)">Crear cuenta</button></div></div>
+<div class="row"><button class="s" onclick="fbOut()">Desconectar</button></div></details>
 <div class="card"><h2>Lectura con IA</h2><label>Clave API de Anthropic (opcional; se guarda solo en este teléfono)</label><input id="key" type="password" autocomplete="off"><p class="m">Con internet y clave: lee con la IA de Claude. Sin clave o sin internet: OCR en el teléfono (la primera vez necesita internet para descargarlo).</p></div>
 <div class="card"><h2>Agregar comprobante</h2>
 <div class="row" style="margin:0 0 10px">
@@ -170,10 +171,12 @@ function bk(){dlf(JSON.stringify({...S,key:''}),'respaldo606.json','application/
 async function rs(inp){try{const k=S.key;S=JSON.parse(await inp.files[0].text());S.key=k;localStorage.setItem('f606',JSON.stringify(S));render();push()}catch(e){alert('Archivo inválido')}inp.value=''}
 if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js');
 let FB=null,R={},RM='',unsub=[];
-const st=t=>{$('sst').textContent=t},local=()=>{try{localStorage.setItem('f606',JSON.stringify(S))}catch(e){}};
-const CF=()=>{try{return JSON.parse(localStorage.getItem('f606cfg'))}catch(e){return null}};
+const FBCFG=null;
+const st=t=>{$('sst').textContent='☁ '+t},local=()=>{try{localStorage.setItem('f606',JSON.stringify(S))}catch(e){}};
+const CF=()=>{try{const c=JSON.parse(localStorage.getItem('f606cfg'));if(c&&c.cfg)return c}catch(e){}return FBCFG?{cfg:FBCFG}:null};
+function ui(u){const c=!!CF();$('cfgbox').hidden=c||!!u;$('lgbox').hidden=!!u}
 function ld2(u){return new Promise((ok,no)=>{const x=document.createElement('script');x.src=u;x.onload=ok;x.onerror=no;document.head.appendChild(x)})}
-function onRows(sn){sn.docChanges().forEach(ch=>{const id=ch.doc.id;if(ch.type==='removed'){S.rows=S.rows.filter(r=>r.id!==id);delete R[id]}else{const d=ch.doc.data();d.id=id;R[id]=JSON.stringify(d);const i=S.rows.findIndex(r=>r.id===id);if(i<0)S.rows.push(d);else S.rows[i]=d}});local();render();st('Sincronizado ✓ '+new Date().toLocaleTimeString())}
+function onRows(sn){sn.docChanges().forEach(ch=>{const id=ch.doc.id;if(ch.type==='removed'){S.rows=S.rows.filter(r=>r.id!==id);delete R[id]}else{const d=ch.doc.data();d.id=id;R[id]=JSON.stringify(d);const i=S.rows.findIndex(r=>r.id===id);if(i<0)S.rows.push(d);else S.rows[i]=d}});local();render();st('Sincronizado ✓ '+new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}))}
 function onMeta(d){if(!d.exists||(d.metadata&&d.metadata.hasPendingWrites))return;const m=d.data();RM=JSON.stringify({rnc:m.rnc||'',per:m.per||''});let c=0;if(m.rnc&&m.rnc!==S.rnc){S.rnc=m.rnc;c=1}if(m.per&&m.per!==S.per){S.per=m.per;c=1}if(c){local();render()}}
 function push(){if(!FB)return;const b=FB.db.collection('users').doc(FB.u.uid),ids=new Set();S.rows.forEach(o=>{if(!o.id)o.id=uid()});
 S.rows.forEach(o=>{ids.add(o.id);const j=JSON.stringify(o);if(R[o.id]!==j){R[o.id]=j;b.collection('rows').doc(o.id).set(JSON.parse(j)).catch(e=>st('Error al subir: '+e.message))}});
@@ -182,14 +185,15 @@ const m=JSON.stringify({rnc:S.rnc||'',per:S.per||''});if(m!==RM){RM=m;b.collecti
 async function fbInit(){const c=CF();if(!c||!c.cfg)return;st('Conectando…');
 try{const V='https://www.gstatic.com/firebasejs/10.12.2/';if(!window.firebase){await ld2(V+'firebase-app-compat.js');await ld2(V+'firebase-auth-compat.js');await ld2(V+'firebase-firestore-compat.js')}
 if(!firebase.apps.length)firebase.initializeApp(c.cfg);const db=firebase.firestore();try{await db.enablePersistence({synchronizeTabs:true})}catch(e){}
-firebase.auth().onAuthStateChanged(u=>{unsub.forEach(f=>f());unsub=[];FB=null;R={};RM='';if(!u){st('Configurado. Inicia sesión o crea tu cuenta.');return}
-FB={db,u};const b=db.collection('users').doc(u.uid);st('Sincronizando como '+u.email+'…');
+firebase.auth().onAuthStateChanged(u=>{unsub.forEach(f=>f());unsub=[];FB=null;R={};RM='';ui(u);if(!u){st('Inicia sesión para sincronizar (toca aquí)');$('syd').open=true;return}
+FB={db,u};const b=db.collection('users').doc(u.uid);st('Conectando como '+u.email+'…');
 unsub.push(b.collection('rows').onSnapshot(onRows,e=>st('Error de sincronización: '+e.message)));unsub.push(b.collection('meta').doc('main').onSnapshot(onMeta));push()})}
 catch(e){st('Sin conexión con Firebase (necesita internet la primera vez): '+((e&&e.message)||''))}}
 async function fbIn(c){const t=$('fcfg').value.trim();let cfg=(CF()||{}).cfg;if(t){cfg={};for(const m of t.matchAll(/(\w+)\s*:\s*["']([^"']*)["']/g))cfg[m[1]]=m[2]}
 if(!cfg||!cfg.apiKey||!cfg.projectId){alert('Pega la configuración de Firebase completa (debe incluir apiKey y projectId).');return}
 localStorage.setItem('f606cfg',JSON.stringify({cfg}));await fbInit();if(!window.firebase)return;
-try{const a=firebase.auth(),e=$('fem').value.trim(),p=$('fpw').value;if(c)await a.createUserWithEmailAndPassword(e,p);else await a.signInWithEmailAndPassword(e,p);$('fpw').value=''}catch(x){alert('No se pudo entrar: '+x.message)}}
-async function fbOut(){try{if(window.firebase)await firebase.auth().signOut()}catch(e){}FB=null;R={};st('Sesión cerrada. Los datos siguen guardados en este dispositivo.')}
-render();fbInit();
+try{const a=firebase.auth(),e=$('fem').value.trim(),p=$('fpw').value;if(c){await a.createUserWithEmailAndPassword(e,p);try{localStorage.setItem('f606em',e)}catch(x){}$('syd').open=false}else await a.signInWithEmailAndPassword(e,p);$('fpw').value='';try{localStorage.setItem('f606em',e)}catch(x){}$('syd').open=false}catch(x){alert('No se pudo entrar: '+x.message)}}
+async function fbOut(){try{if(window.firebase)await firebase.auth().signOut()}catch(e){}FB=null;R={};ui(null);st('Sesión cerrada (los datos siguen en este equipo)')}
+try{$('fem').value=localStorage.getItem('f606em')||''}catch(e){}
+render();ui(null);fbInit();
 </script></body></html>
