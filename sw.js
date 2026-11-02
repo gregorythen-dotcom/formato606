@@ -1,4 +1,4 @@
-const C='f606-v20',SHELL=['./','index.html','manifest.webmanifest','icon-192.png','icon-512.png'],OK=['cdn.jsdelivr.net','cdnjs.cloudflare.com','www.gstatic.com','tessdata.projectnaptha.com','unpkg.com'];
+const C='f606-v21',SHELL=['./','index.html','manifest.webmanifest','icon-192.png','icon-512.png'],OK=['cdn.jsdelivr.net','cdnjs.cloudflare.com','www.gstatic.com','tessdata.projectnaptha.com','unpkg.com'];
 self.addEventListener('install',e=>e.waitUntil(caches.open(C).then(c=>c.addAll(SHELL)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(k=>Promise.all(k.filter(x=>x!==C).map(x=>caches.delete(x)))).then(()=>self.clients.claim())));
 self.addEventListener('fetch',e=>{const r=e.request,u=new URL(r.url);if(r.method!=='GET')return;
