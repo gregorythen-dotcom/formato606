@@ -28,6 +28,7 @@ button,.btn{padding:10px 14px;border:0;border-radius:8px;background:var(--a);col
 <button onclick="scan()">📷 Escanear QR</button>
 <label class="btn s" style="color:var(--t)">Foto de factura<input type="file" accept="image/*" capture="environment" hidden onchange="photo(this)"></label>
 <label class="btn s" style="color:var(--t)">Importar archivos<input type="file" multiple accept=".xml,.csv,.txt,.pdf,image/*" hidden onchange="imp(this)"></label></div>
+<div class="g" style="margin:8px 0"><div><label>PDF del banco: tipo de gasto</label><select id="btg" onchange="try{localStorage.setItem('f606btg',this.value)}catch(e){}"></select></div><div><label>PDF del banco: forma de pago</label><select id="bfp" onchange="try{localStorage.setItem('f606bfp',this.value)}catch(e){}"></select></div></div>
 <video id="v" hidden playsinline></video>
 <div id="vc" class="row" hidden style="margin:8px 0"><button onclick="snap()">📸 Capturar factura</button><button class="s" onclick="stop()">Cerrar cámara</button></div>
 <div class="g">
@@ -146,7 +147,19 @@ v.srcObject=stream;v.hidden=false;v.play();$('vc').hidden=false;$('err').textCon
 const lp=async()=>{if(!stream)return;try{const r=await d.detect(v);if(r[0]&&fromQR(r[0].rawValue)){stop();$('err').textContent='QR leído: revisa los montos.';return}}catch(e){}setTimeout(lp,300)};lp()}
 function stop(){if(stream)stream.getTracks().forEach(t=>t.stop());stream=null;$('v').hidden=true;$('vc').hidden=true}
 async function snap(){const v=$('v');if(!v.videoWidth)return;const c=document.createElement('canvas');c.width=v.videoWidth;c.height=v.videoHeight;c.getContext('2d').drawImage(v,0,0);const b=await new Promise(r=>c.toBlob(r,'image/jpeg',.92));stop();await proc(new File([b],'captura.jpg',{type:'image/jpeg'}))}
+async function pdfPages(f){try{const V='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';if(!window.pdfjsLib)await new Promise((ok,no)=>{const s=document.createElement('script');s.src=V+'pdf.min.js';s.onload=ok;s.onerror=no;document.head.appendChild(s)});
+pdfjsLib.GlobalWorkerOptions.workerSrc=V+'pdf.worker.min.js';const d=await pdfjsLib.getDocument({data:new Uint8Array(await f.arrayBuffer())}).promise,r=[];
+for(let p=1;p<=d.numPages;p++){const c=await(await d.getPage(p)).getTextContent();let out='',y=null;for(const i of c.items){const yy=i.transform[5];if(y!==null)out+=Math.abs(yy-y)>3?'\n':' ';out+=i.str;y=yy}r.push(out)}return r}catch(e){return[]}}
+function bankPg(t){const g=re=>{const m=t.match(re);return m?m[1]:''},ncf=g(/E-?\s?NCF:?\s*(E\d{12})/i),tot=g(/Total\s*NCF:?\s*([\d,]*\.\d{2})/i).replace(/,/g,''),prov=g(/\bRNC:?\s*([\d][\d -]{7,14})/i).replace(/\D/g,'');
+let m=t.match(/Fecha\s*emisi[oó]n:?\s*(\d{2})\s*\/\s*(\d{2})\s*\/\s*(\d{4})/i)||t.match(/(\d{2})\/(\d{2})\/(\d{4})/);const fc=m?`${m[3]}-${m[2]}-${m[1]}`:'';
+let it=0;for(const x of t.matchAll(/\d{2}\/\d{2}\/\d{4}\s+\d+\s+([\d,]*\.\d{2})\s+[\d,]*\.\d{2}/g))it+=N(x[1].replace(/,/g,''));if(it>N(tot))it=0;return{ncf,tot,prov,fc,it}}
+async function bankPdf(f,rep){const pg=await pdfPages(f);if(pg.length<2)return-1;const ok=pg.filter(t=>/Total\s*NCF/i.test(t)&&/E-?\s?NCF/i.test(t));if(ok.length<pg.length/2)return-1;
+const tg=($('btg').value||'02'),fp=($('bfp').value||'02');let n=0,dup=0,bad=[];
+pg.forEach((t,i)=>{const b=bankPg(t);if(!b.ncf||!b.tot||!b.prov){bad.push(i+1);return}if(S.rows.some(r=>r.ncf===b.ncf)){dup++;return}
+S.rows.push({prov:b.prov,ncf:b.ncf,fc:b.fc,fp:'',tg,sv:M(N(b.tot)-b.it),bi:'',it:b.it?M(b.it):'',ir:'',pr:'',fpg:fp,tt:M(N(b.tot)),kd:'s'});n++});
+rep.push(f.name+': '+n+' facturas (una por página)'+(dup?', '+dup+' ya estaban (repetidas)':'')+(bad.length?', sin datos en página(s) '+bad.join(','):''));return n}
 async function imp(inp){let n=0,rep=[];for(const f of inp.files){const nm=f.name.toLowerCase();
+if(nm.endsWith('.pdf')){$('err').textContent='Leyendo '+f.name+'…';const r=await bankPdf(f,rep);if(r>=0){n+=r;continue}}
 if(nm.endsWith('.xml')){const x=new DOMParser().parseFromString(await f.text(),'text/xml'),g=t=>(x.getElementsByTagName(t)[0]||{}).textContent||'';
 S.rows.push({prov:g('RNCEmisor'),ncf:g('eNCF'),fc:dt(g('FechaEmision')),fp:'',tg:'02',sv:'',bi:g('MontoTotal')?M(N(g('MontoTotal'))-N(g('TotalITBIS'))):'',it:g('TotalITBIS'),ir:'',pr:'',fpg:'04'});n++}
 else if(f.type.startsWith('image/')||nm.endsWith('.pdf')){$('err').textContent='Leyendo '+f.name+'…';const im=f.type.startsWith('image/')?await thumb(f):null,{o,src}=await readInv(f);rep.push(f.name+': '+(src||'nada leído')+(o.ncf||o.prov||o.bi||o.sv?'':' → sin datos'));S.rows.push({prov:'',ncf:'',fc:'',fp:'',tg:'02',sv:'',bi:'',it:'',ir:'',pr:'',fpg:'01',...o,img:im});n++}
@@ -242,5 +255,6 @@ localStorage.setItem('f606cfg',JSON.stringify({cfg}));await fbInit();if(!window.
 try{const a=firebase.auth(),e=$('fem').value.trim(),p=$('fpw').value;if(c){await a.createUserWithEmailAndPassword(e,p);try{localStorage.setItem('f606em',e)}catch(x){}$('syd').open=false}else await a.signInWithEmailAndPassword(e,p);$('fpw').value='';try{localStorage.setItem('f606em',e)}catch(x){}$('syd').open=false}catch(x){alert('No se pudo entrar: '+x.message)}}
 async function fbOut(){try{if(window.firebase)await firebase.auth().signOut()}catch(e){}FB=null;R={};ui(null);st('Sesión cerrada (los datos siguen en este equipo)')}
 try{$('fem').value=localStorage.getItem('f606em')||''}catch(e){}
+$('btg').innerHTML=$('tg').innerHTML;$('bfp').innerHTML=$('fpg').innerHTML;try{$('btg').value=localStorage.getItem('f606btg')||'02';$('bfp').value=localStorage.getItem('f606bfp')||'02'}catch(e){}
 render();if(S.rows.some(o=>!parseInt(o.nu)))sv();clr();render();ui(null);fbInit();
 </script></body></html>
