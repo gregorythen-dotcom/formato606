@@ -10,13 +10,17 @@ label{display:block;font-size:12px;color:var(--m)}input,select{width:100%;paddin
 button,.btn{padding:10px 14px;border:0;border-radius:8px;background:var(--a);color:#fff;font:inherit;font-weight:600;cursor:pointer;display:inline-block}
 .s{background:transparent;color:var(--t);border:1px solid var(--b)}.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
 .tw{overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:13px}td,th{padding:7px;border-bottom:1px solid var(--b);text-align:left;white-space:nowrap}
-.bad{color:var(--r)}.m{color:var(--m);font-size:13px}video{width:100%;max-height:60vh;border-radius:8px;background:#000}img.th{height:34px;border-radius:4px}
+.bad{color:var(--r)}.m{color:var(--m);font-size:13px}textarea{width:100%;padding:9px;border:1px solid var(--b);border-radius:8px;background:var(--bg);color:var(--t);font:12px monospace}video{width:100%;max-height:60vh;border-radius:8px;background:#000}img.th{height:34px;border-radius:4px}
 </style></head><body>
 <h1>Formato 606 · Compras de bienes y servicios</h1>
 <div class="card"><div class="g">
 <div><label>Tu RNC o cédula</label><input id="rnc" inputmode="numeric" maxlength="11"></div>
 <div><label>Período (AAAAMM)</label><input id="per" inputmode="numeric" maxlength="6" placeholder="Ejemplo: 202610"></div></div></div>
 
+<div class="card"><h2>Sincronizar entre dispositivos</h2><p class="m" id="sst">Sin configurar.</p>
+<label>Configuración de Firebase (pégala aquí)</label><textarea id="fcfg" rows="4" placeholder="const firebaseConfig = { apiKey: ..., projectId: ... };"></textarea>
+<div class="g" style="margin-top:8px"><div><label>Correo</label><input id="fem" type="email" autocomplete="email"></div><div><label>Contraseña</label><input id="fpw" type="password" autocomplete="current-password"></div></div>
+<div class="row"><button onclick="fbIn(0)">Iniciar sesión</button><button class="s" onclick="fbIn(1)">Crear cuenta</button><button class="s" onclick="fbOut()">Desconectar</button></div></div>
 <div class="card"><h2>Lectura con IA</h2><label>Clave API de Anthropic (opcional; se guarda solo en este teléfono)</label><input id="key" type="password" autocomplete="off"><p class="m">Con internet y clave: lee con la IA de Claude. Sin clave o sin internet: OCR en el teléfono (la primera vez necesita internet para descargarlo).</p></div>
 <div class="card"><h2>Agregar comprobante</h2>
 <div class="row" style="margin:0 0 10px">
@@ -51,10 +55,12 @@ button,.btn{padding:10px 14px;border:0;border-radius:8px;background:var(--a);col
 <div class="card" id="rep" hidden><h2>Reporte 606</h2><p class="m">En la herramienta de la DGII: toca la celda <b>B12</b> y pega con <b>Pegar especial → Valores</b>. Los datos ocupan de la columna B a la Z: la fecha del comprobante va dividida (G = año y mes, H = día) y la fecha de pago (I y J) queda vacía. Se copian sin títulos.</p><div class="row" style="margin:0 0 10px"><button onclick="cp(0)">Copiar filas</button><button class="s" onclick="cp(1)">Copiar con títulos</button></div><div class="tw"><table id="rt"></table></div></div>
 <script>
 const $=i=>document.getElementById(i);let S={rnc:'',per:'',rows:[]},ed=-1,cur=null,stream=null;
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,8);
 try{S=JSON.parse(localStorage.getItem('f606'))||S}catch(e){}
+S.rows=S.rows||[];S.rows.forEach(o=>{if(!o.id)o.id=uid()});
 const F=['prov','ncf','fc','fp','tg','sv','bi','it','ir','pr','fpg','tt','kd'];
 function calc(){const t=N($('tt').value);if(!t){alert('Escribe el total de la factura (el que incluye el ITBIS).');return}const b=M(t-N($('it').value)-N($('pr').value));if($('kd').value==='s'){$('sv').value=b;$('bi').value=''}else{$('bi').value=b;$('sv').value=''}}
-const sv=()=>{S.rnc=$('rnc').value.replace(/\D/g,'');S.per=$('per').value.replace(/\D/g,'');S.key=$('key').value.trim();try{localStorage.setItem('f606',JSON.stringify(S))}catch(e){alert('No se pudo guardar en este navegador')}};
+const sv=()=>{S.rnc=$('rnc').value.replace(/\D/g,'');S.per=$('per').value.replace(/\D/g,'');S.key=$('key').value.trim();try{localStorage.setItem('f606',JSON.stringify(S))}catch(e){alert('No se pudo guardar en este navegador')}push()};
 $('rnc').oninput=$('per').oninput=$('key').oninput=sv;
 const N=x=>parseFloat(x)||0,M=x=>N(x).toFixed(2),D=x=>(x||'').replace(/-/g,'');
 const okNcf=x=>/^(B\d{10}|E\d{12})$/i.test(x);
@@ -65,7 +71,7 @@ function rd(){const o={};F.forEach(k=>o[k]=$(k).value.trim());o.ncf=o.ncf.toUppe
 function fill(o){F.forEach(k=>{if(o[k]!=null)$(k).value=o[k]})}
 function clr(){F.forEach(k=>$(k).value='');$('tg').value='02';$('fpg').value='01';$('kd').value='b';cur=null;ed=-1;$('ab').textContent='Guardar';$('err').textContent=''}
 function add(){const o=rd(),e=chk(o);if(e.length&&!confirm('Hay avisos:\n- '+e.join('\n- ')+'\n¿Guardar de todas formas?'))return;
-if(ed>=0)S.rows[ed]=o;else S.rows.push(o);sv();clr();render()}
+if(ed>=0){o.id=S.rows[ed].id;S.rows[ed]=o}else{o.id=uid();S.rows.push(o)}sv();clr();render()}
 function render(){$('rnc').value=S.rnc||'';$('key').value=S.key||'';$('per').value=S.per||'';$('n').textContent=S.rows.length;
 $('tb').innerHTML=S.rows.map((o,i)=>{const e=chk(o);return`<tr><td>${o.img?`<img class="th" src="${o.img}">`:''}</td><td>${o.prov}</td><td class="${e.length?'bad':''}" title="${e.join('; ')}">${o.ncf}${e.length?' ⚠':''}</td><td>${o.fc}</td><td>${M(N(o.sv)+N(o.bi))}</td><td>${M(o.it)}</td><td><button class="s" onclick="ld(${i})">Editar</button> <button class="s" onclick="dl(${i})">✕</button></td></tr>`}).join('')}
 function ld(i){clr();ed=i;cur=S.rows[i].img||null;fill(S.rows[i]);$('ab').textContent='Actualizar';scrollTo(0,0)}
@@ -161,7 +167,29 @@ const L=S.rows.map(o=>fld(o).join('|'));
 dlf(['606',S.rnc,S.per,S.rows.length].join('|')+'\n'+L.join('\n'),`DGII_F_606_${S.rnc}_${S.per}.TXT`,'text/plain')}
 function dlf(txt,name,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([txt],{type}));a.download=name;a.click()}
 function bk(){dlf(JSON.stringify({...S,key:''}),'respaldo606.json','application/json')}
-async function rs(inp){try{const k=S.key;S=JSON.parse(await inp.files[0].text());S.key=k;localStorage.setItem('f606',JSON.stringify(S));render()}catch(e){alert('Archivo inválido')}inp.value=''}
+async function rs(inp){try{const k=S.key;S=JSON.parse(await inp.files[0].text());S.key=k;localStorage.setItem('f606',JSON.stringify(S));render();push()}catch(e){alert('Archivo inválido')}inp.value=''}
 if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js');
-render();
+let FB=null,R={},RM='',unsub=[];
+const st=t=>{$('sst').textContent=t},local=()=>{try{localStorage.setItem('f606',JSON.stringify(S))}catch(e){}};
+const CF=()=>{try{return JSON.parse(localStorage.getItem('f606cfg'))}catch(e){return null}};
+function ld2(u){return new Promise((ok,no)=>{const x=document.createElement('script');x.src=u;x.onload=ok;x.onerror=no;document.head.appendChild(x)})}
+function onRows(sn){sn.docChanges().forEach(ch=>{const id=ch.doc.id;if(ch.type==='removed'){S.rows=S.rows.filter(r=>r.id!==id);delete R[id]}else{const d=ch.doc.data();d.id=id;R[id]=JSON.stringify(d);const i=S.rows.findIndex(r=>r.id===id);if(i<0)S.rows.push(d);else S.rows[i]=d}});local();render();st('Sincronizado ✓ '+new Date().toLocaleTimeString())}
+function onMeta(d){if(!d.exists)return;const m=d.data();RM=JSON.stringify({rnc:m.rnc||'',per:m.per||''});if(m.rnc)S.rnc=m.rnc;if(m.per)S.per=m.per;local();render()}
+function push(){if(!FB)return;const b=FB.db.collection('users').doc(FB.u.uid),ids=new Set();S.rows.forEach(o=>{if(!o.id)o.id=uid()});
+S.rows.forEach(o=>{ids.add(o.id);const j=JSON.stringify(o);if(R[o.id]!==j){R[o.id]=j;b.collection('rows').doc(o.id).set(JSON.parse(j)).catch(e=>st('Error al subir: '+e.message))}});
+Object.keys(R).forEach(id=>{if(!ids.has(id)){delete R[id];b.collection('rows').doc(id).delete().catch(()=>{})}});
+const m=JSON.stringify({rnc:S.rnc||'',per:S.per||''});if(m!==RM){RM=m;b.collection('meta').doc('main').set({rnc:S.rnc||'',per:S.per||''}).catch(()=>{})}}
+async function fbInit(){const c=CF();if(!c||!c.cfg)return;st('Conectando…');
+try{const V='https://www.gstatic.com/firebasejs/10.12.2/';if(!window.firebase){await ld2(V+'firebase-app-compat.js');await ld2(V+'firebase-auth-compat.js');await ld2(V+'firebase-firestore-compat.js')}
+if(!firebase.apps.length)firebase.initializeApp(c.cfg);const db=firebase.firestore();try{await db.enablePersistence({synchronizeTabs:true})}catch(e){}
+firebase.auth().onAuthStateChanged(u=>{unsub.forEach(f=>f());unsub=[];FB=null;R={};RM='';if(!u){st('Configurado. Inicia sesión o crea tu cuenta.');return}
+FB={db,u};const b=db.collection('users').doc(u.uid);st('Sincronizando como '+u.email+'…');
+unsub.push(b.collection('rows').onSnapshot(onRows,e=>st('Error de sincronización: '+e.message)));unsub.push(b.collection('meta').doc('main').onSnapshot(onMeta));push()})}
+catch(e){st('Sin conexión con Firebase (necesita internet la primera vez): '+((e&&e.message)||''))}}
+async function fbIn(c){const t=$('fcfg').value.trim();let cfg=(CF()||{}).cfg;if(t){cfg={};for(const m of t.matchAll(/(\w+)\s*:\s*["']([^"']*)["']/g))cfg[m[1]]=m[2]}
+if(!cfg||!cfg.apiKey||!cfg.projectId){alert('Pega la configuración de Firebase completa (debe incluir apiKey y projectId).');return}
+localStorage.setItem('f606cfg',JSON.stringify({cfg}));await fbInit();if(!window.firebase)return;
+try{const a=firebase.auth(),e=$('fem').value.trim(),p=$('fpw').value;if(c)await a.createUserWithEmailAndPassword(e,p);else await a.signInWithEmailAndPassword(e,p);$('fpw').value=''}catch(x){alert('No se pudo entrar: '+x.message)}}
+async function fbOut(){try{if(window.firebase)await firebase.auth().signOut()}catch(e){}FB=null;R={};st('Sesión cerrada. Los datos siguen guardados en este dispositivo.')}
+render();fbInit();
 </script></body></html>
