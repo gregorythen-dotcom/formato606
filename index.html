@@ -54,7 +54,7 @@ button,.btn{padding:10px 14px;border:0;border-radius:8px;background:var(--a);col
 
 <div class="card" id="rep" hidden><h2>Reporte 606</h2><p class="m">En la herramienta de la DGII: toca la celda <b>B12</b> y pega con <b>Pegar especial → Valores</b>. Los datos ocupan de la columna B a la Z: la fecha del comprobante va dividida (G = año y mes, H = día) y la fecha de pago (I y J) queda vacía. Se copian sin títulos.</p><div class="row" style="margin:0 0 10px"><button onclick="cp(0)">Copiar filas</button><button class="s" onclick="cp(1)">Copiar con títulos</button></div><div class="tw"><table id="rt"></table></div></div>
 <script>
-const $=i=>document.getElementById(i);let S={rnc:'',per:'',rows:[]},ed=-1,cur=null,stream=null;
+const $=i=>document.getElementById(i);let S={rnc:'',per:'',rows:[]},ed=-1,edId=null,cur=null,stream=null;
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,8);
 try{S=JSON.parse(localStorage.getItem('f606'))||S}catch(e){}
 S.rows=S.rows||[];S.rows.forEach(o=>{if(!o.id)o.id=uid()});
@@ -69,12 +69,12 @@ if(!okNcf(o.ncf))e.push('NCF inválido (B + 10 dígitos, o E + 12 dígitos)');if
 if(N(o.sv)+N(o.bi)<=0)e.push('falta monto');{const b=N(o.sv)+N(o.bi),i=N(o.it);if(i>0&&b>0){const r=i/b;if(Math.abs(r-.18)>.004&&Math.abs(r-.16)>.004)e.push('el ITBIS no es 18% ni 16% del monto: ¿el monto incluye el ITBIS?')}}if(S.per&&o.fc&&D(o.fc).slice(0,6)!==S.per)e.push('la fecha no es del período');return e}
 function rd(){const o={};F.forEach(k=>o[k]=$(k).value.trim());o.ncf=o.ncf.toUpperCase();if(cur)o.img=cur;return o}
 function fill(o){F.forEach(k=>{if(o[k]!=null)$(k).value=o[k]})}
-function clr(){F.forEach(k=>$(k).value='');$('tg').value='02';$('fpg').value='01';$('kd').value='b';cur=null;ed=-1;$('ab').textContent='Guardar';$('err').textContent=''}
+function clr(){F.forEach(k=>$(k).value='');$('tg').value='02';$('fpg').value='01';$('kd').value='b';cur=null;ed=-1;edId=null;$('ab').textContent='Guardar';$('err').textContent=''}
 function add(){const o=rd(),e=chk(o);if(e.length&&!confirm('Hay avisos:\n- '+e.join('\n- ')+'\n¿Guardar de todas formas?'))return;
-if(ed>=0){o.id=S.rows[ed].id;S.rows[ed]=o}else{o.id=uid();S.rows.push(o)}sv();clr();render()}
+const k=edId?S.rows.findIndex(r=>r.id===edId):-1;if(k>=0){o.id=edId;S.rows[k]=o}else{o.id=uid();S.rows.push(o)}sv();clr();render()}
 function render(){$('rnc').value=S.rnc||'';$('key').value=S.key||'';$('per').value=S.per||'';$('n').textContent=S.rows.length;
 $('tb').innerHTML=S.rows.map((o,i)=>{const e=chk(o);return`<tr><td>${o.img?`<img class="th" src="${o.img}">`:''}</td><td>${o.prov}</td><td class="${e.length?'bad':''}" title="${e.join('; ')}">${o.ncf}${e.length?' ⚠':''}</td><td>${o.fc}</td><td>${M(N(o.sv)+N(o.bi))}</td><td>${M(o.it)}</td><td><button class="s" onclick="ld(${i})">Editar</button> <button class="s" onclick="dl(${i})">✕</button></td></tr>`}).join('')}
-function ld(i){clr();ed=i;cur=S.rows[i].img||null;fill(S.rows[i]);$('ab').textContent='Actualizar';scrollTo(0,0)}
+function ld(i){clr();ed=i;edId=S.rows[i].id;cur=S.rows[i].img||null;fill(S.rows[i]);$('ab').textContent='Actualizar';scrollTo(0,0)}
 function dl(i){if(confirm('¿Eliminar?')){S.rows.splice(i,1);sv();render()}}
 function dt(s){s=(s||'').trim();let m=s.match(/^(\d{2})[-\/](\d{2})[-\/](\d{4})/);if(m)return`${m[3]}-${m[2]}-${m[1]}`;m=s.match(/^(\d{4})-(\d{2})-(\d{2})/);return m?m[0]:''}
 function thumb(f){return new Promise(r=>{const i=new Image(),u=URL.createObjectURL(f);i.onload=()=>{const k=Math.min(1,900/i.width),c=document.createElement('canvas');c.width=i.width*k;c.height=i.height*k;c.getContext('2d').drawImage(i,0,0,c.width,c.height);URL.revokeObjectURL(u);r(c.toDataURL('image/jpeg',.6))};i.onerror=()=>r(null);i.src=u})}
@@ -174,7 +174,7 @@ const st=t=>{$('sst').textContent=t},local=()=>{try{localStorage.setItem('f606',
 const CF=()=>{try{return JSON.parse(localStorage.getItem('f606cfg'))}catch(e){return null}};
 function ld2(u){return new Promise((ok,no)=>{const x=document.createElement('script');x.src=u;x.onload=ok;x.onerror=no;document.head.appendChild(x)})}
 function onRows(sn){sn.docChanges().forEach(ch=>{const id=ch.doc.id;if(ch.type==='removed'){S.rows=S.rows.filter(r=>r.id!==id);delete R[id]}else{const d=ch.doc.data();d.id=id;R[id]=JSON.stringify(d);const i=S.rows.findIndex(r=>r.id===id);if(i<0)S.rows.push(d);else S.rows[i]=d}});local();render();st('Sincronizado ✓ '+new Date().toLocaleTimeString())}
-function onMeta(d){if(!d.exists)return;const m=d.data();RM=JSON.stringify({rnc:m.rnc||'',per:m.per||''});if(m.rnc)S.rnc=m.rnc;if(m.per)S.per=m.per;local();render()}
+function onMeta(d){if(!d.exists||(d.metadata&&d.metadata.hasPendingWrites))return;const m=d.data();RM=JSON.stringify({rnc:m.rnc||'',per:m.per||''});let c=0;if(m.rnc&&m.rnc!==S.rnc){S.rnc=m.rnc;c=1}if(m.per&&m.per!==S.per){S.per=m.per;c=1}if(c){local();render()}}
 function push(){if(!FB)return;const b=FB.db.collection('users').doc(FB.u.uid),ids=new Set();S.rows.forEach(o=>{if(!o.id)o.id=uid()});
 S.rows.forEach(o=>{ids.add(o.id);const j=JSON.stringify(o);if(R[o.id]!==j){R[o.id]=j;b.collection('rows').doc(o.id).set(JSON.parse(j)).catch(e=>st('Error al subir: '+e.message))}});
 Object.keys(R).forEach(id=>{if(!ids.has(id)){delete R[id];b.collection('rows').doc(id).delete().catch(()=>{})}});
