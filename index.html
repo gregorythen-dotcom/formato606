@@ -258,7 +258,7 @@ try{const V='https://www.gstatic.com/firebasejs/10.12.2/';if(!window.firebase){a
 if(!firebase.apps.length)firebase.initializeApp(c.cfg);const db=firebase.firestore();try{db.settings({experimentalAutoDetectLongPolling:true,useFetchStreams:false,merge:true})}catch(e){}try{await db.enablePersistence({synchronizeTabs:true})}catch(e){}
 firebase.auth().onAuthStateChanged(u=>{unsub.forEach(f=>f());unsub=[];FB=null;R={};RM='';ui(u);if(!u){st('Inicia sesión para sincronizar (toca aquí)');$('syd').open=true;return}
 FB={db,u};clearTimeout(window._slow);window._slow=setTimeout(()=>{if(FB&&!FB.ready&&/Cargando/.test($('sst').textContent))st(navigator.onLine?'No llega respuesta de la nube. Revisa que el teléfono tenga datos o WiFi sin bloqueos (VPN, bloqueador de anuncios, DNS privado).':'Sin internet: sincronizará al conectarse')},15000);const b=db.collection('users').doc(u.uid);st('Conectando como '+u.email+'…');
-unsub.push(b.collection('rows').onSnapshot(onRows,e=>st('Error de sincronización: '+e.message)));unsub.push(b.collection('meta').doc('main').onSnapshot(onMeta));push()})}
+unsub.push(b.collection('rows').onSnapshot({includeMetadataChanges:true},onRows,e=>st('Error de sincronización: '+e.message)));unsub.push(b.collection('meta').doc('main').onSnapshot(onMeta));push()})}
 catch(e){st('Sin conexión con Firebase (necesita internet la primera vez): '+((e&&e.message)||''))}}
 async function fbIn(c){const t=$('fcfg').value.trim();let cfg=(CF()||{}).cfg;if(t){cfg={};for(const m of t.matchAll(/(\w+)\s*:\s*["']([^"']*)["']/g))cfg[m[1]]=m[2]}
 if(!cfg||!cfg.apiKey||!cfg.projectId){alert('Pega la configuración de Firebase completa (debe incluir apiKey y projectId).');return}
