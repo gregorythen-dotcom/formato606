@@ -255,6 +255,6 @@ localStorage.setItem('f606cfg',JSON.stringify({cfg}));await fbInit();if(!window.
 try{const a=firebase.auth(),e=$('fem').value.trim(),p=$('fpw').value;if(c){await a.createUserWithEmailAndPassword(e,p);try{localStorage.setItem('f606em',e)}catch(x){}$('syd').open=false}else await a.signInWithEmailAndPassword(e,p);$('fpw').value='';try{localStorage.setItem('f606em',e)}catch(x){}$('syd').open=false}catch(x){alert('No se pudo entrar: '+x.message)}}
 async function fbOut(){try{if(window.firebase)await firebase.auth().signOut()}catch(e){}FB=null;R={};ui(null);st('Sesión cerrada (los datos siguen en este equipo)')}
 try{$('fem').value=localStorage.getItem('f606em')||''}catch(e){}
-$('btg').innerHTML=$('tg').innerHTML;$('bfp').innerHTML=$('fpg').innerHTML;try{$('btg').value=localStorage.getItem('f606btg')||'02';$('bfp').value=localStorage.getItem('f606bfp')||'02'}catch(e){}
+$('btg').innerHTML=$('tg').innerHTML;$('bfp').innerHTML=$('fpg').innerHTML;try{$('btg').value=localStorage.getItem('f606btg')||'07';$('bfp').value=localStorage.getItem('f606bfp')||'02'}catch(e){}
 render();if(S.rows.some(o=>!parseInt(o.nu)))sv();clr();render();ui(null);fbInit();
 </script></body></html>
