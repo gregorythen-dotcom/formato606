@@ -50,7 +50,7 @@ button,.btn{padding:10px 14px;border:0;border-radius:8px;background:var(--a);col
 <div class="row"><button onclick="add()" id="ab">Guardar</button><button class="s" onclick="clr()">Limpiar</button></div></div>
 
 <div class="card"><h2>Comprobantes (<span id="n">0</span>)</h2><div class="tw"><table><thead><tr><th>N.º</th><th></th><th>Proveedor</th><th>NCF</th><th>Fecha</th><th>Total</th><th>ITBIS</th><th></th></tr></thead><tbody id="tb"></tbody></table></div>
-<div class="row"><button onclick="exp()">Generar TXT para la DGII</button><button onclick="ver()">Ver reporte / copiar</button><button class="s" onclick="bk()">Respaldo</button><button class="s" onclick="nm()">Cerrar mes</button>
+<div class="row"><button onclick="exp()">Generar TXT para la DGII</button><button onclick="ver()">Ver reporte / copiar</button><button onclick="xl()">Descargar Excel</button><button class="s" onclick="bk()">Respaldo</button><button class="s" onclick="nm()">Cerrar mes</button>
 <label class="btn s" style="color:var(--t)">Restaurar<input type="file" accept=".json" hidden onchange="rs(this)"></label></div>
 <p class="m">Antes de enviar, valida el TXT con el prevalidador de la DGII. Todo se guarda solo en este dispositivo.</p></div>
 
@@ -174,6 +174,41 @@ const bad=S.rows.filter(o=>chk(o).length).length;if(bad&&!confirm(bad+' comproba
 const L=RS().map(o=>fld(o).join('|'));
 dlf(['606',S.rnc,S.per,S.rows.length].join('|')+'\n'+L.join('\n'),`DGII_F_606_${S.rnc}_${S.per}.TXT`,'text/plain')}
 function dlf(txt,name,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([txt],{type}));a.download=name;a.click()}
+const crcT=(()=>{const t=[];for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c>>>0}return t})();
+function crc(b){let c=0xFFFFFFFF;for(let i=0;i<b.length;i++)c=crcT[(c^b[i])&255]^(c>>>8);return(c^0xFFFFFFFF)>>>0}
+function zip(fs){const te=new TextEncoder(),ch=[],cd=[];let off=0;const u16=n=>[n&255,n>>8&255],u32=n=>[n&255,n>>8&255,n>>16&255,n>>>24];
+fs.forEach(([nm,tx])=>{const n=te.encode(nm),d=te.encode(tx),c=crc(d);const h=new Uint8Array([0x50,0x4b,3,4,20,0,0,8,0,0,0,0,0x21,0,...u32(c),...u32(d.length),...u32(d.length),...u16(n.length),0,0,...n]);ch.push(h,d);cd.push(new Uint8Array([0x50,0x4b,1,2,20,0,20,0,0,8,0,0,0,0,0x21,0,...u32(c),...u32(d.length),...u32(d.length),...u16(n.length),0,0,0,0,0,0,0,0,0,0,0,0,...u32(off),...n]));off+=h.length+d.length});
+const cs=cd.reduce((a,b)=>a+b.length,0);return new Blob([...ch,...cd,new Uint8Array([0x50,0x4b,5,6,0,0,0,0,...u16(fs.length),...u16(fs.length),...u32(cs),...u32(off),0,0])],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'})}
+const X=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const CL=i=>{let s='';i++;while(i){const m=(i-1)%26;s=String.fromCharCode(65+m)+s;i=(i-m-1)/26}return s};
+function xlsx(S,rows,fld,fldX,HDX){
+const sh=(w,body,mg)=>`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0"/></sheetViews><cols>${w.map((x,i)=>`<col min="${i+1}" max="${i+1}" width="${x}" customWidth="1"/>`).join('')}</cols><sheetData>${body}</sheetData>${mg?`<mergeCells count="${mg.length}">${mg.map(m=>`<mergeCell ref="${m}"/>`).join('')}</mergeCells>`:''}</worksheet>`;
+const c=(r,i,v,s)=>{const a=CL(i)+r;if(v===''||v==null)return s?`<c r="${a}" s="${s}"/>`:'';if(typeof v==='number')return`<c r="${a}" s="${s||0}"><v>${v}</v></c>`;return`<c r="${a}" s="${s||2}" t="inlineStr"><is><t xml:space="preserve">${X(v)}</t></is></c>`};
+const row=(r,cells,h)=>`<row r="${r}"${h?` ht="${h}" customHeight="1"`:''}>${cells.join('')}</row>`;
+const n=rows.length,R0=12,R1=R0+Math.max(n,1)-1;
+let ts=0,ti=0;const data=rows.map(o=>{const f=fldX(o);ts+=(parseFloat(f[11])||0);ti+=(parseFloat(f[12])||0);return[o.nu||'',f]});
+const b=[];
+b.push(row(4,[c(4,1,'RNC o Cédula',1),c(4,2,S.rnc||'',2),c(4,4,'Total facturado (sin ITBIS)',1),c(4,5,Math.round(ts*100)/100,3)]));
+b.push(row(5,[c(5,1,'Periodo (AAAAMM)',1),c(5,2,S.per||'',2),c(5,4,'ITBIS facturado',1),c(5,5,Math.round(ti*100)/100,3)]));
+b.push(row(6,[c(6,1,'Cantidad Registros',1),c(6,2,n,4)]));
+const g=[1,2,3,4,5,6,'',7,'',8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23];
+b.push(row(9,[c(9,0,'',1),...g.map((v,i)=>c(9,i+1,v===''?'':String(v),1))]));
+b.push(row(10,[c(10,0,'Líneas',1),...HDX.map((h,i)=>c(10,i+1,h,1))],48));
+const num=new Set([9,10,11,12,13,14,15,16,17,19,20,21,22,23]);
+data.forEach(([nu,f],k)=>{const r=R0+k;b.push(row(r,[c(r,0,nu===''?'':+nu,4),...f.map((v,i)=>{if(num.has(i)&&v!==''&&!isNaN(parseFloat(v)))return c(r,i+1,parseFloat(v),3);return c(r,i+1,v,2)})]))});
+const w=[8,15,8,58,16,16,12,9,12,9,14,14,14,13,12,14,12,12,12,26,12,12,13,12,12,34];
+const s1=sh(w,b.join(''),['G9:H9','I9:J9'].map(x=>x));
+const L=[['606',S.rnc,S.per,n].join('|'),...rows.map(o=>fld(o).join('|'))];
+const s2=sh([160],L.map((t,i)=>row(i+1,[c(i+1,0,t,2)])).join(''));
+const font=(b,w)=>`<font>${b?'<b/>':''}<sz val="10"/>${w?'<color rgb="FFFFFFFF"/>':''}<name val="Arial"/></font>`;
+const st=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="1"><numFmt numFmtId="164" formatCode="#,##0.00"/></numFmts><fonts count="3">${font(0,0)}${font(1,1)}${font(1,0)}</fonts><fills count="4"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF1F3864"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFF2F2F2"/></patternFill></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="5"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf><xf numFmtId="49" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/><xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/><xf numFmtId="0" fontId="2" fillId="3" borderId="0" xfId="0" applyFont="1" applyFill="1"/></cellXfs></styleSheet>`;
+const H='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
+return zip([['[Content_Types].xml',H+'<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/worksheets/sheet2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>'],
+['_rels/.rels',H+'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>'],
+['xl/workbook.xml',H+'<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Formato 606" sheetId="1" r:id="rId1"/><sheet name="TXT para DGII" sheetId="2" r:id="rId2"/></sheets></workbook>'],
+['xl/_rels/workbook.xml.rels',H+'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet2.xml"/><Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>'],
+['xl/styles.xml',st],['xl/worksheets/sheet1.xml',s1],['xl/worksheets/sheet2.xml',s2]])}
+function xl(){sv();if(!S.rows.length){alert('No hay comprobantes guardados todavía.');return}const bl=xlsx(S,RS(),fld,fldX,HDX),a=document.createElement('a');a.href=URL.createObjectURL(bl);a.download=`Formato_606_${S.per||'periodo'}.xlsx`;a.click()}
 function bk(){dlf(JSON.stringify({...S,key:''}),'respaldo606.json','application/json')}
 function nm(){if(!S.rows.length){alert('No hay comprobantes.');return}if(!confirm('CERRAR MES: se descargará un respaldo con los '+S.rows.length+' comprobantes y luego se borrarán de la app (en todos tus equipos) para empezar el mes nuevo desde el N.º 1.\n\n¿Ya generaste el TXT / copiaste a Excel de este mes?'))return;sv();bk();setTimeout(()=>{if(!confirm('¿Se descargó el respaldo? Si es así, pulsa Aceptar para vaciar la lista y empezar desde 1.'))return;S.rows=[];clr();sv();render();alert('Listo. El próximo comprobante será el N.º 1. Recuerda cambiar el período.')},600)}
 async function rs(inp){try{const k=S.key;S=JSON.parse(await inp.files[0].text());S.key=k;localStorage.setItem('f606',JSON.stringify(S));render();push()}catch(e){alert('Archivo inválido')}inp.value=''}
@@ -203,5 +238,5 @@ localStorage.setItem('f606cfg',JSON.stringify({cfg}));await fbInit();if(!window.
 try{const a=firebase.auth(),e=$('fem').value.trim(),p=$('fpw').value;if(c){await a.createUserWithEmailAndPassword(e,p);try{localStorage.setItem('f606em',e)}catch(x){}$('syd').open=false}else await a.signInWithEmailAndPassword(e,p);$('fpw').value='';try{localStorage.setItem('f606em',e)}catch(x){}$('syd').open=false}catch(x){alert('No se pudo entrar: '+x.message)}}
 async function fbOut(){try{if(window.firebase)await firebase.auth().signOut()}catch(e){}FB=null;R={};ui(null);st('Sesión cerrada (los datos siguen en este equipo)')}
 try{$('fem').value=localStorage.getItem('f606em')||''}catch(e){}
-if(S.rows.some(o=>!parseInt(o.nu)))sv();clr();render();ui(null);fbInit();
+render();if(S.rows.some(o=>!parseInt(o.nu)))sv();clr();render();ui(null);fbInit();
 </script></body></html>
