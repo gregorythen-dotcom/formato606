@@ -50,7 +50,7 @@ button,.btn{padding:10px 14px;border:0;border-radius:8px;background:var(--a);col
 <div class="row"><button onclick="add()" id="ab">Guardar</button><button class="s" onclick="clr()">Limpiar</button></div></div>
 
 <div class="card"><h2>Comprobantes (<span id="n">0</span>)</h2><div class="tw"><table><thead><tr><th>N.º</th><th></th><th>Proveedor</th><th>NCF</th><th>Fecha</th><th>Total</th><th>ITBIS</th><th></th></tr></thead><tbody id="tb"></tbody></table></div>
-<div class="row"><button onclick="exp()">Generar TXT para la DGII</button><button onclick="ver()">Ver reporte / copiar</button><button class="s" onclick="bk()">Respaldo</button>
+<div class="row"><button onclick="exp()">Generar TXT para la DGII</button><button onclick="ver()">Ver reporte / copiar</button><button class="s" onclick="bk()">Respaldo</button><button class="s" onclick="nm()">Cerrar mes</button>
 <label class="btn s" style="color:var(--t)">Restaurar<input type="file" accept=".json" hidden onchange="rs(this)"></label></div>
 <p class="m">Antes de enviar, valida el TXT con el prevalidador de la DGII. Todo se guarda solo en este dispositivo.</p></div>
 
@@ -175,6 +175,7 @@ const L=RS().map(o=>fld(o).join('|'));
 dlf(['606',S.rnc,S.per,S.rows.length].join('|')+'\n'+L.join('\n'),`DGII_F_606_${S.rnc}_${S.per}.TXT`,'text/plain')}
 function dlf(txt,name,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([txt],{type}));a.download=name;a.click()}
 function bk(){dlf(JSON.stringify({...S,key:''}),'respaldo606.json','application/json')}
+function nm(){if(!S.rows.length){alert('No hay comprobantes.');return}if(!confirm('CERRAR MES: se descargará un respaldo con los '+S.rows.length+' comprobantes y luego se borrarán de la app (en todos tus equipos) para empezar el mes nuevo desde el N.º 1.\n\n¿Ya generaste el TXT / copiaste a Excel de este mes?'))return;sv();bk();setTimeout(()=>{if(!confirm('¿Se descargó el respaldo? Si es así, pulsa Aceptar para vaciar la lista y empezar desde 1.'))return;S.rows=[];clr();sv();render();alert('Listo. El próximo comprobante será el N.º 1. Recuerda cambiar el período.')},600)}
 async function rs(inp){try{const k=S.key;S=JSON.parse(await inp.files[0].text());S.key=k;localStorage.setItem('f606',JSON.stringify(S));render();push()}catch(e){alert('Archivo inválido')}inp.value=''}
 if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js');
 let FB=null,R={},RM='',unsub=[];
@@ -202,5 +203,5 @@ localStorage.setItem('f606cfg',JSON.stringify({cfg}));await fbInit();if(!window.
 try{const a=firebase.auth(),e=$('fem').value.trim(),p=$('fpw').value;if(c){await a.createUserWithEmailAndPassword(e,p);try{localStorage.setItem('f606em',e)}catch(x){}$('syd').open=false}else await a.signInWithEmailAndPassword(e,p);$('fpw').value='';try{localStorage.setItem('f606em',e)}catch(x){}$('syd').open=false}catch(x){alert('No se pudo entrar: '+x.message)}}
 async function fbOut(){try{if(window.firebase)await firebase.auth().signOut()}catch(e){}FB=null;R={};ui(null);st('Sesión cerrada (los datos siguen en este equipo)')}
 try{$('fem').value=localStorage.getItem('f606em')||''}catch(e){}
-render();ui(null);fbInit();
+if(S.rows.some(o=>!parseInt(o.nu)))sv();clr();render();ui(null);fbInit();
 </script></body></html>
