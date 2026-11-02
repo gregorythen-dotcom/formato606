@@ -31,6 +31,7 @@ button,.btn{padding:10px 14px;border:0;border-radius:8px;background:var(--a);col
 <video id="v" hidden playsinline></video>
 <div id="vc" class="row" hidden style="margin:8px 0"><button onclick="snap()">📸 Capturar factura</button><button class="s" onclick="stop()">Cerrar cámara</button></div>
 <div class="g">
+<div><label>N.º de factura (orden)</label><input id="nu" type="number" min="1" inputmode="numeric"></div>
 <div><label>RNC/cédula proveedor</label><input id="prov" inputmode="numeric" maxlength="11"></div>
 <div><label>NCF / e-NCF</label><input id="ncf" maxlength="13"></div>
 <div><label>Fecha del comprobante</label><input id="fc" type="date"></div>
@@ -48,7 +49,7 @@ button,.btn{padding:10px 14px;border:0;border-radius:8px;background:var(--a);col
 <div id="err" class="bad m"></div><pre id="dbg" class="m" style="white-space:pre-wrap;max-height:160px;overflow:auto"></pre>
 <div class="row"><button onclick="add()" id="ab">Guardar</button><button class="s" onclick="clr()">Limpiar</button></div></div>
 
-<div class="card"><h2>Comprobantes (<span id="n">0</span>)</h2><div class="tw"><table><thead><tr><th></th><th>Proveedor</th><th>NCF</th><th>Fecha</th><th>Total</th><th>ITBIS</th><th></th></tr></thead><tbody id="tb"></tbody></table></div>
+<div class="card"><h2>Comprobantes (<span id="n">0</span>)</h2><div class="tw"><table><thead><tr><th>N.º</th><th></th><th>Proveedor</th><th>NCF</th><th>Fecha</th><th>Total</th><th>ITBIS</th><th></th></tr></thead><tbody id="tb"></tbody></table></div>
 <div class="row"><button onclick="exp()">Generar TXT para la DGII</button><button onclick="ver()">Ver reporte / copiar</button><button class="s" onclick="bk()">Respaldo</button>
 <label class="btn s" style="color:var(--t)">Restaurar<input type="file" accept=".json" hidden onchange="rs(this)"></label></div>
 <p class="m">Antes de enviar, valida el TXT con el prevalidador de la DGII. Todo se guarda solo en este dispositivo.</p></div>
@@ -59,22 +60,24 @@ const $=i=>document.getElementById(i);let S={rnc:'',per:'',rows:[]},ed=-1,edId=n
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,8);
 try{S=JSON.parse(localStorage.getItem('f606'))||S}catch(e){}
 S.rows=S.rows||[];S.rows.forEach(o=>{if(!o.id)o.id=uid()});
-const F=['prov','ncf','fc','fp','tg','sv','bi','it','ir','pr','fpg','tt','kd'];
+const F=['nu','prov','ncf','fc','fp','tg','sv','bi','it','ir','pr','fpg','tt','kd'];
 function calc(){const t=N($('tt').value);if(!t){alert('Escribe el total de la factura (el que incluye el ITBIS).');return}const b=M(t-N($('it').value)-N($('pr').value));if($('kd').value==='s'){$('sv').value=b;$('bi').value=''}else{$('bi').value=b;$('sv').value=''}}
-const sv=()=>{S.rnc=$('rnc').value.replace(/\D/g,'');S.per=$('per').value.replace(/\D/g,'');S.key=$('key').value.trim();try{localStorage.setItem('f606',JSON.stringify(S))}catch(e){alert('No se pudo guardar en este navegador')}push()};
+const nxt=()=>S.rows.reduce((m,r)=>Math.max(m,parseInt(r.nu)||0),0)+1;
+const RS=()=>S.rows.map((o,i)=>[o,i]).sort((a,b)=>(parseInt(a[0].nu)||1e9)-(parseInt(b[0].nu)||1e9)||a[1]-b[1]).map(x=>x[0]);
+const sv=()=>{S.rows.forEach(o=>{if(!parseInt(o.nu))o.nu=String(nxt())});S.rnc=$('rnc').value.replace(/\D/g,'');S.per=$('per').value.replace(/\D/g,'');S.key=$('key').value.trim();try{localStorage.setItem('f606',JSON.stringify(S))}catch(e){alert('No se pudo guardar en este navegador')}push()};
 $('rnc').oninput=$('per').oninput=$('key').oninput=sv;
 const N=x=>parseFloat(x)||0,M=x=>N(x).toFixed(2),D=x=>(x||'').replace(/-/g,'');
 const okNcf=x=>/^(B\d{10}|E\d{12})$/i.test(x);
 function chk(o){const e=[];if(!/^(\d{9}|\d{11})$/.test(o.prov))e.push(/^\d{10}$/.test(o.prov)?'La cédula tiene 10 dígitos: ¿falta un 0 al inicio?':'RNC/cédula del proveedor debe tener 9 u 11 dígitos');else if(o.prov.length===9&&!rncOk(o.prov))e.push('El dígito verificador de este RNC no coincide: revisa que esté bien leído (algunos RNC válidos pueden salir así)');
 if(!okNcf(o.ncf))e.push('NCF inválido (B + 10 dígitos, o E + 12 dígitos)');if(!o.fc)e.push('falta fecha');
-if(N(o.sv)+N(o.bi)<=0)e.push('falta monto');{const b=N(o.sv)+N(o.bi),i=N(o.it);if(i>0&&b>0){const r=i/b;if(Math.abs(r-.18)>.004&&Math.abs(r-.16)>.004)e.push('el ITBIS no es 18% ni 16% del monto: ¿el monto incluye el ITBIS?')}}if(S.per&&o.fc&&D(o.fc).slice(0,6)!==S.per)e.push('la fecha no es del período');return e}
+if(N(o.sv)+N(o.bi)<=0)e.push('falta monto');{const b=N(o.sv)+N(o.bi),i=N(o.it);if(i>0&&b>0){const r=i/b;if(r>.184)e.push('el ITBIS es mayor al 18% del monto: ¿el monto incluye el ITBIS?')}}if(S.per&&o.fc&&D(o.fc).slice(0,6)!==S.per)e.push('la fecha no es del período');return e}
 function rd(){const o={};F.forEach(k=>o[k]=$(k).value.trim());o.ncf=o.ncf.toUpperCase();if(cur)o.img=cur;return o}
 function fill(o){F.forEach(k=>{if(o[k]!=null)$(k).value=o[k]})}
-function clr(){F.forEach(k=>$(k).value='');$('tg').value='02';$('fpg').value='01';$('kd').value='b';cur=null;ed=-1;edId=null;$('ab').textContent='Guardar';$('err').textContent=''}
-function add(){const o=rd();if(/^\d{10}$/.test(o.prov)&&confirm('El RNC/cédula tiene 10 dígitos. Las cédulas tienen 11 y muchas empiezan con 0 (por ejemplo 001). ¿Agregar un 0 al inicio?'))o.prov='0'+o.prov;const e=chk(o);if(e.length&&!confirm('Hay avisos:\n- '+e.join('\n- ')+'\n¿Guardar de todas formas?'))return;
+function clr(){F.forEach(k=>$(k).value='');$('tg').value='02';$('fpg').value='01';$('kd').value='b';$('nu').value=nxt();cur=null;ed=-1;edId=null;$('ab').textContent='Guardar';$('err').textContent=''}
+function add(){const o=rd();if(/^\d{10}$/.test(o.prov)&&confirm('El RNC/cédula tiene 10 dígitos. Las cédulas tienen 11 y muchas empiezan con 0 (por ejemplo 001). ¿Agregar un 0 al inicio?'))o.prov='0'+o.prov;if(!parseInt(o.nu))o.nu=String(nxt());else o.nu=String(parseInt(o.nu));const dup=S.rows.some(r=>r.id!==edId&&String(r.nu)===o.nu);const e=chk(o);if(dup)e.push('el N.º '+o.nu+' ya está usado en otra factura');if(e.length&&!confirm('Hay avisos:\n- '+e.join('\n- ')+'\n¿Guardar de todas formas?'))return;
 const k=edId?S.rows.findIndex(r=>r.id===edId):-1;if(k>=0){o.id=edId;S.rows[k]=o}else{o.id=uid();S.rows.push(o)}sv();clr();render()}
-function render(){$('rnc').value=S.rnc||'';$('key').value=S.key||'';$('per').value=S.per||'';$('n').textContent=S.rows.length;
-$('tb').innerHTML=S.rows.map((o,i)=>{const e=chk(o);return`<tr><td>${o.img?`<img class="th" src="${o.img}">`:''}</td><td>${o.prov}</td><td class="${e.length?'bad':''}" title="${e.join('; ')}">${o.ncf}${e.length?' ⚠':''}</td><td>${o.fc}</td><td>${M(N(o.sv)+N(o.bi))}</td><td>${M(o.it)}</td><td><button class="s" onclick="ld(${i})">Editar</button> <button class="s" onclick="dl(${i})">✕</button></td></tr>`}).join('')}
+function render(){$('rnc').value=S.rnc||'';$('key').value=S.key||'';$('per').value=S.per||'';$('n').textContent=S.rows.length;if(ed<0){const v=$('nu').value;if(!v||S.rows.some(r=>String(r.nu)===v))$('nu').value=nxt()}
+$('tb').innerHTML=S.rows.map((o,i)=>[o,i]).sort((a,b)=>(parseInt(a[0].nu)||1e9)-(parseInt(b[0].nu)||1e9)||a[1]-b[1]).map(([o,i])=>{const e=chk(o);return`<tr><td><b>${o.nu||''}</b></td><td>${o.img?`<img class="th" src="${o.img}">`:''}</td><td>${o.prov}</td><td class="${e.length?'bad':''}" title="${e.join('; ')}">${o.ncf}${e.length?' ⚠':''}</td><td>${o.fc}</td><td>${M(N(o.sv)+N(o.bi))}</td><td>${M(o.it)}</td><td><button class="s" onclick="ld(${i})">Editar</button> <button class="s" onclick="dl(${i})">✕</button></td></tr>`}).join('')}
 function ld(i){clr();ed=i;edId=S.rows[i].id;cur=S.rows[i].img||null;fill(S.rows[i]);$('ab').textContent='Actualizar';scrollTo(0,0)}
 function dl(i){if(confirm('¿Eliminar?')){S.rows.splice(i,1);sv();render()}}
 function dt(s){s=(s||'').trim();let m=s.match(/^(\d{2})[-\/](\d{2})[-\/](\d{4})/);if(m)return`${m[3]}-${m[2]}-${m[1]}`;m=s.match(/^(\d{4})-(\d{2})-(\d{2})/);return m?m[0]:''}
@@ -159,16 +162,16 @@ function lab(m,c){const d=m[c];if(!d)return c;const x=FM();return x==='c'?c:x===
 const HDX=['RNC o Cédula','Tipo Id','Tipo Bienes y Servicios Comprados','NCF','NCF o Documento Modificado','Fecha Comprobante (AAAAMM)','Fecha Comprobante (día)','Fecha Pago (AAAAMM)','Fecha Pago (día)',...HD.slice(7)];
 function fldX(o){const f=fld(o),c=D(o.fc),p=D(o.fp);const r=[...f.slice(0,5),c.slice(0,6),c.slice(6,8),p.slice(0,6),p.slice(6,8),...f.slice(7)];r[2]=lab(TGD,o.tg);r[r.length-1]=lab(FPD,o.fpg);return r}
 async function cp(h){sv();if(!S.rows.length){alert('No hay comprobantes guardados todavía.');return}
-const t=[...(h?[HDX.join('\t')]:[]),...S.rows.map(o=>{const f=fldX(o);if(FD()==='o')[0,6,8,2,24].forEach(i=>{if(/^0\d*$/.test(f[i]))f[i]="'"+f[i]});return f.join('\t')})].join('\n');
+const t=[...(h?[HDX.join('\t')]:[]),...RS().map(o=>{const f=fldX(o);if(FD()==='o')[0,6,8,2,24].forEach(i=>{if(/^0\d*$/.test(f[i]))f[i]="'"+f[i]});return f.join('\t')})].join('\n');
 try{await navigator.clipboard.writeText(t)}catch(e){const a=document.createElement('textarea');a.value=t;document.body.appendChild(a);a.select();document.execCommand('copy');a.remove()}
 alert('Copiado ('+S.rows.length+' filas). '+(h?'Pégalo en la celda A1 de una hoja nueva.':'Haz clic en la celda B12 de tu Excel y pega (Ctrl+V).'))}
 function ver(){sv();$('fm').value=FM();$('fd').value=FD();if(!S.rows.length){alert('No hay comprobantes guardados todavía.');return}
-$('rt').innerHTML='<thead><tr>'+HDX.map((h,i)=>`<th title="${h}">${String.fromCharCode(66+i)}</th>`).join('')+'</tr></thead><tbody>'+S.rows.map(o=>'<tr>'+fldX(o).map(v=>`<td>${v}</td>`).join('')+'</tr>').join('')+'</tbody>';$('rep').hidden=false;$('rep').scrollIntoView()}
+$('rt').innerHTML='<thead><tr>'+HDX.map((h,i)=>`<th title="${h}">${String.fromCharCode(66+i)}</th>`).join('')+'</tr></thead><tbody>'+RS().map(o=>'<tr>'+fldX(o).map(v=>`<td>${v}</td>`).join('')+'</tr>').join('')+'</tbody>';$('rep').hidden=false;$('rep').scrollIntoView()}
 function exp(){sv();if(!S.rows.length){alert('No hay comprobantes guardados. Importa o agrega comprobantes primero: el reporte saldría vacío.');return}if(!/^\d{6}$/.test(S.per)&&S.rows[0]&&S.rows[0].fc){const p=D(S.rows[0].fc).slice(0,6);if(confirm('Falta el período. ¿Usar '+p+'?')){S.per=p;$('per').value=p;sv()}}
 if(!/^(\d{9}|\d{11})$/.test(S.rnc)){alert('Tu RNC o cédula debe tener 9 u 11 dígitos, solo números. Ahora tiene '+S.rnc.length+'.');return}
 if(!/^\d{6}$/.test(S.per)){alert('Escribe el período como AAAAMM, por ejemplo 202610 (año 2026, mes 10). Lo que ves en gris es solo un ejemplo.');return}
 const bad=S.rows.filter(o=>chk(o).length).length;if(bad&&!confirm(bad+' comprobante(s) con avisos. ¿Generar de todas formas?'))return;
-const L=S.rows.map(o=>fld(o).join('|'));
+const L=RS().map(o=>fld(o).join('|'));
 dlf(['606',S.rnc,S.per,S.rows.length].join('|')+'\n'+L.join('\n'),`DGII_F_606_${S.rnc}_${S.per}.TXT`,'text/plain')}
 function dlf(txt,name,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([txt],{type}));a.download=name;a.click()}
 function bk(){dlf(JSON.stringify({...S,key:''}),'respaldo606.json','application/json')}
